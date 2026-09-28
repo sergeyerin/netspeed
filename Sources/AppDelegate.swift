@@ -378,7 +378,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         header.update(state: linkState,
                       down: headerDown.format(s.down, unit: unit, padded: false),
                       up: headerUp.format(s.up, unit: unit, padded: false))
-        sparkline.update(history: monitor.history, unit: unit)
+        sparkline.update(history: monitor.history, unit: unit, interval: settings.interval)
         panel.update(panelLines())
         panel.frame.size = panel.intrinsicContentSize
     }
