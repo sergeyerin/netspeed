@@ -18,13 +18,32 @@ enum Tone {
         }
     }
 
-    private static func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> NSColor {
+    fileprivate static func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> NSColor {
         NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
     }
 
-    private static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
+    fileprivate static func dynamic(light: NSColor, dark: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+        }
+    }
+}
+
+/// Colors for the two directions.
+///
+/// The bright system blue and orange work as filled areas on a chart, but as
+/// small text on a light background they wash out — the same orange that reads
+/// fine as a 40-point band is barely legible at 10 points. Text gets a darker
+/// pair; the areas keep the bright one.
+enum Flow {
+    case down, up
+
+    var area: NSColor { self == .down ? .systemBlue : .systemOrange }
+
+    var ink: NSColor {
+        switch self {
+        case .down: return Tone.dynamic(light: Tone.rgb(0.04, 0.37, 0.80), dark: Tone.rgb(0.42, 0.71, 1.00))
+        case .up: return Tone.dynamic(light: Tone.rgb(0.68, 0.34, 0.02), dark: Tone.rgb(1.00, 0.62, 0.04))
         }
     }
 }

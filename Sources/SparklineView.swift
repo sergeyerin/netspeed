@@ -110,8 +110,8 @@ final class SparklineView: NSView {
                 path.lineWidth = 1.6
                 path.stroke()
             }
-            area(history.map(\.down), up: true, color: .systemBlue)
-            area(history.map(\.up), up: false, color: .systemOrange)
+            area(history.map(\.down), up: true, color: Flow.down.area)
+            area(history.map(\.up), up: false, color: Flow.up.area)
 
             if let hover, hover < history.count {
                 let x = plot.minX + CGFloat(hover) * step
@@ -141,11 +141,11 @@ final class SparklineView: NSView {
             let reading = NSMutableAttributedString()
             reading.append(NSAttributedString(string: "↓ \(Fmt.rate(sample.down, unit: unit))", attributes: [
                 .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-                .foregroundColor: NSColor.systemBlue,
+                .foregroundColor: Flow.down.ink,
             ]))
             reading.append(NSAttributedString(string: "   ↑ \(Fmt.rate(sample.up, unit: unit))", attributes: [
                 .font: NSFont.systemFont(ofSize: 10, weight: .medium),
-                .foregroundColor: NSColor.systemOrange,
+                .foregroundColor: Flow.up.ink,
             ]))
             reading.append(NSAttributedString(string: ago == 0 ? "   now" : "   \(ago)s ago", attributes: dim))
             reading.draw(at: NSPoint(x: plot.minX, y: plot.maxY + 2))
@@ -158,10 +158,10 @@ final class SparklineView: NSView {
 
         let legend = NSMutableAttributedString()
         legend.append(NSAttributedString(string: "↓", attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                                                                  .foregroundColor: NSColor.systemBlue]))
+                                                                  .foregroundColor: Flow.down.ink]))
         legend.append(NSAttributedString(string: " down  ", attributes: dim))
         legend.append(NSAttributedString(string: "↑", attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                                                                   .foregroundColor: NSColor.systemOrange]))
+                                                                   .foregroundColor: Flow.up.ink]))
         legend.append(NSAttributedString(string: " up", attributes: dim))
         legend.draw(at: NSPoint(x: plot.maxX - legend.size().width, y: plot.maxY + 2))
 

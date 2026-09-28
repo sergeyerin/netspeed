@@ -16,7 +16,9 @@ final class HeaderView: NSView {
     private var down = ""
     private var up = ""
 
-    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 58) }
+    // Tall enough to clear the chart's top label underneath: at 58 the descenders
+    // of the speed row sat on it.
+    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 68) }
     override var isFlipped: Bool { true }
 
     func update(state: LinkState, down: String, up: String) {
@@ -54,9 +56,9 @@ final class HeaderView: NSView {
 
         // Large speed figures
         let y: CGFloat = 34
-        drawRate("↓", down, color: .systemBlue, at: NSPoint(x: Layout.pad, y: y))
+        drawRate("↓", down, color: Flow.down.ink, at: NSPoint(x: Layout.pad, y: y))
         let upWidth = rateWidth("↑", up)
-        drawRate("↑", up, color: .systemOrange, at: NSPoint(x: Layout.width - Layout.pad - upWidth, y: y))
+        drawRate("↑", up, color: Flow.up.ink, at: NSPoint(x: Layout.width - Layout.pad - upWidth, y: y))
     }
 
     private func rateAttributes(_ color: NSColor) -> ([NSAttributedString.Key: Any], [NSAttributedString.Key: Any]) {
