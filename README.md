@@ -6,11 +6,26 @@ one 332 KB binary, ~25 MB of memory and under 1% of a single core at idle.
 The point is to see what the connection is doing without clicking anything —
 especially on a phone hotspot, where the link keeps swinging.
 
-## Build and install
+## Download
+
+A ready disk image lives at **[netspeed.biplane.cc](https://netspeed.biplane.cc/)**
+and on the [releases page](https://github.com/sergeyerin/netspeed/releases).
+macOS 13 or newer, Apple silicon.
+
+The app is signed ad-hoc rather than with a paid Apple developer certificate, so
+the first launch is refused. Either allow it once in **System Settings → Privacy
+& Security → Open Anyway**, or clear the download flag:
 
 ```bash
-./build.sh            # build into ./build/NetSpeed.app
-./build.sh install    # build, install into ~/Applications and launch
+xattr -dr com.apple.quarantine /Applications/NetSpeed.app
+```
+
+## Build it yourself
+
+```bash
+./build.sh              # build into ./build/NetSpeed.app
+./build.sh install      # build, install into ~/Applications and launch
+tools/make-dmg.sh       # build and pack dist/NetSpeed-<version>.dmg
 ```
 
 Only the Command Line Tools (`swiftc`) are needed. The app is ad-hoc signed, has
@@ -186,3 +201,6 @@ mobile data at all. All of it can be turned off:
 | `Sources/SparklineView.swift` | history chart |
 | `Sources/Format.swift` | constant-width rate formatter and value formatting |
 | `Sources/Settings.swift` | preferences |
+| `tools/make-dmg.sh` | packs the app into a disk image |
+| `tools/publish.sh`, `tools/render-page.py` | upload the image and build the download page |
+| `tools/nginx-netspeed.conf` | server config for netspeed.biplane.cc |
