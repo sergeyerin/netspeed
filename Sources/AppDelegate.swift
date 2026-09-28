@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var timer: Timer?
     private var menuOpen = false
+    private var menuOpenedAt: Date?
     private var lastGatewayProbe = Date.distantPast
     private var lastInternetProbe = Date.distantPast
     private let externalIP = ExternalIP()
@@ -71,6 +72,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         restartTimer()
         tick()
         checkForUpdates()
+    }
+
+    /// Launching an app that is already running does not start a second copy:
+    /// LaunchServices sends this to the one already there instead. So a second
+    /// double-click never reaches claimSingleInstance() — this is the only place
+    /// it can be answered, and without an answer nothing happens at all, which
+    /// is exactly how it looked.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        let asked = Date()
+        // Opening the menu is the good outcome: it shows where the icon is and
+        // gives access in one move.
+        statusItem?.button?.performClick(nil)
+
+        // Menu tracking runs its own loop, so this lands after the menu closes.
+        // Whether it opened at all is the question, not whether it is open now.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self, (self.menuOpenedAt ?? .distantPast) < asked else { return }
+            // The click went nowhere: the icon did not fit in the menu bar.
+            self.alreadyRunning.show(
+                title: "NetSpeed is already running",
+                message: "Its icon did not fit in the menu bar, so there is no way to "
+                    + "reach it there. Free up room by quitting another menu bar app, or "
+                    + "switch to Settings → Menu bar display → Indicator only, which takes "
+                    + "a fifth of the space. You can also quit NetSpeed here.",
+                onQuit: { NSApp.terminate(nil) },
+                onClose: {})
+        }
+        return true
     }
 
     /// Runs at launch and once a day after that. The checker keeps the interval
@@ -367,6 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         menuOpen = true
+        menuOpenedAt = Date()
         Interfaces.reload()
         rebuildSettings()
         rebuildAbout()
