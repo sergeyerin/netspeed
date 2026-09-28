@@ -46,14 +46,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch claimSingleInstance() {
         case .proceed:
             break
-        case .alreadyRunning(let version):
+        case .alreadyRunning(let version, let running):
             // Say so before leaving. Without a window or a Dock icon, a copy
             // that just exits is indistinguishable from one that failed to
             // start, and the running instance is a single small icon that is
             // easy to miss — which is how three of them accumulated here.
             // The app stays alive until the message is dismissed; it holds no
             // status item, so there is still only one icon in the menu bar.
-            reportAlreadyRunning(version: version)
+            reportAlreadyRunning(version: version, running: running)
             return
         }
         Interfaces.reload()
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private enum Claim {
         case proceed
-        case alreadyRunning(version: String?)
+        case alreadyRunning(version: String?, running: [NSRunningApplication])
     }
 
     /// Decides whether this launch should carry on, and clears the way if so.
@@ -115,13 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let theirs = other.bundleURL.flatMap(Bundle.init(url:))?.version
             switch theirs.map({ Version.compare($0, mine) }) ?? .orderedAscending {
             case .orderedDescending:
-                return .alreadyRunning(version: theirs)   // a newer copy is running
+                return .alreadyRunning(version: theirs, running: [other])   // newer copy
             case .orderedSame:
                 // Same version: the one that started first keeps the menu bar.
                 // Without this tie-break two copies launched together would each
                 // see the other and both step aside, leaving none.
                 if (other.launchDate ?? .distantPast) < started {
-                    return .alreadyRunning(version: theirs)
+                    return .alreadyRunning(version: theirs, running: [other])
                 }
                 superseded.append(other)
             case .orderedAscending:
@@ -139,20 +139,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return .proceed
     }
 
-    private func reportAlreadyRunning(version: String?) {
+    private func reportAlreadyRunning(version: String?, running: [NSRunningApplication]) {
         let mine = Bundle.main.version
-        let message: String
+        var message = "Look for the signal bars in the menu bar at the top of the screen. "
         if let version, Version.compare(version, mine) == .orderedDescending {
             message = "Version \(version) is already running and this copy is \(mine), "
-                + "so the newer one was left in place. Look for the signal bars in the "
-                + "menu bar at the top of the screen."
-        } else {
-            message = "Look for the signal bars in the menu bar at the top of the screen. "
-                + "NetSpeed has no Dock icon and no window."
+                + "so the newer one was left in place. " + message
         }
-        alreadyRunning.show(title: "NetSpeed is already running", message: message) {
-            NSApp.terminate(nil)
-        }
+        // Whether the icon is actually on screen cannot be checked from here —
+        // a status item appears in no window list. So the way out is offered
+        // rather than diagnosed.
+        message += "If it is not there, the menu bar is full and the icon did not fit; "
+            + "quitting is then the only way to reach it."
+
+        alreadyRunning.show(
+            title: "NetSpeed is already running",
+            message: message,
+            onQuit: { running.forEach { $0.terminate() } },
+            onClose: { NSApp.terminate(nil) })
     }
 
     private func restartTimer() {

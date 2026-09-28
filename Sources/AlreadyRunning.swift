@@ -11,14 +11,17 @@ import AppKit
 final class AlreadyRunningWindow: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var onClose: (() -> Void)?
+    private var onQuit: (() -> Void)?
 
     /// Closes itself after a while: nobody should have to dismiss a message from
     /// an app they thought they were starting, and a window left open forever
     /// would keep a pointless process alive.
     private let lifetime: TimeInterval = 25
 
-    func show(title: String, message: String, onClose: @escaping () -> Void) {
+    func show(title: String, message: String,
+              onQuit: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.onClose = onClose
+        self.onQuit = onQuit
 
         let padding: CGFloat = 20
         let width: CGFloat = 380
@@ -39,6 +42,13 @@ final class AlreadyRunningWindow: NSObject, NSWindowDelegate {
         button.sizeToFit()
         button.frame.size.width = max(button.frame.width, 80)
 
+        // The way out of the corner this message is most likely to find someone
+        // in: the icon is running but did not fit in the menu bar, and an
+        // accessory app with no icon cannot be quit by any ordinary means.
+        let quit = NSButton(title: "Quit NetSpeed", target: self, action: #selector(quitOther))
+        quit.bezelStyle = .rounded
+        quit.sizeToFit()
+
         let height = padding + button.frame.height + 16 + body.frame.height + 8
             + heading.intrinsicContentSize.height + padding
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
@@ -53,7 +63,8 @@ final class AlreadyRunningWindow: NSObject, NSWindowDelegate {
         heading.frame.origin = NSPoint(x: padding, y: height - padding - heading.intrinsicContentSize.height)
         body.frame.origin = NSPoint(x: padding, y: heading.frame.minY - 8 - body.frame.height)
         button.frame.origin = NSPoint(x: width - padding - button.frame.width, y: padding)
-        [heading, body, button].forEach(content.addSubview)
+        quit.frame.origin = NSPoint(x: button.frame.minX - 10 - quit.frame.width, y: padding)
+        [heading, body, button, quit].forEach(content.addSubview)
 
         self.window = window
         window.makeKeyAndOrderFront(nil)
@@ -64,9 +75,16 @@ final class AlreadyRunningWindow: NSObject, NSWindowDelegate {
         }
     }
 
+    @objc private func quitOther() {
+        onQuit?()
+        onQuit = nil
+        dismiss()
+    }
+
     @objc private func dismiss() {
         guard let onClose else { return }     // already on its way out
         self.onClose = nil
+        self.onQuit = nil
         window?.close()
         window = nil
         onClose()
