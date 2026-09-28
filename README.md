@@ -104,7 +104,8 @@ a table:
   world sees with the country it resolves to — `185.x.x.x (🇱🇹 LT)`.
 
 At the bottom: settings, "Copy summary" (all of the above as text, handy to send
-to support) and quit.
+to support) and quit. When a newer release exists, a row appears above them
+saying so and opening the release page.
 
 The data is drawn as custom views rather than assembled from menu items: macOS
 paints disabled menu items grey no matter what color is set on them, and grey on
@@ -189,8 +190,25 @@ label falls back to the measured estimate.
 
 The internet latency probe is one HTTP request with an empty body every 10
 seconds — roughly 1 KB per minute. Pinging the access point over ICMP costs no
-mobile data at all. All of it can be turned off:
-**Settings → Latency → Measure latency**.
+mobile data at all. Both stop at **Settings → Latency → Measure latency**.
+
+The update check asks GitHub for the latest release once a day, and the external
+address is looked up only while the menu is open and only if the previous answer
+is over five minutes old. Each has its own switch — **About NetSpeed → Check for
+updates** and **Settings → Show external IP**.
+
+## Update checks
+
+The app asks `api.github.com` for the latest release at launch and once a day
+after that, and compares the tag with its own bundle version. The release is
+already the one place the disk image lives, so it is also the one place worth
+asking: a manifest on the site would be a second copy of the same fact, free to
+disagree with the first.
+
+It only reports. Downloading and replacing the app in place would need a
+developer certificate to be safe, and without one Gatekeeper would refuse the
+result anyway — so a newer version becomes a menu row pointing at the release
+page.
 
 ## Publishing a release
 

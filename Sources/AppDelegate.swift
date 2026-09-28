@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let gateway = GatewayProbe()
     private let internet = InternetProbe()
     private let settings = Settings.shared
+    private let updates = UpdateChecker(
+        currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0")
 
     private let menu = NSMenu()
     private let header = HeaderView()
@@ -48,10 +50,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageLeading
         buildMenu()
+        rebuildAbout()
+        rebuildUpdateRow()
         statusItem.menu = menu
 
         restartTimer()
         tick()
+        checkForUpdates()
+    }
+
+    /// Runs at launch and once a day after that. The checker keeps the interval
+    /// itself, so calling this on a tick costs nothing until the day is up.
+    private func checkForUpdates(force: Bool = false) {
+        guard settings.checkForUpdates else { return }
+        updates.check(force: force) { [weak self] in
+            self?.rebuildUpdateRow()
+            self?.refreshMenu()
+        }
     }
 
     private func restartTimer() {
@@ -245,6 +260,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuOpen = true
         Interfaces.reload()
         rebuildSettings()
+        rebuildAbout()
+        rebuildUpdateRow()
         // Looking the address up costs an outside request, so it happens only
         // when the menu is actually opened — and only if the answer went stale.
         if settings.showExternalIP {
@@ -267,25 +284,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(mi)
         }
         menu.addItem(.separator())
+        menu.addItem(updateRow)
         menu.addItem(settingsRoot)
-        menu.addItem(aboutMenuItem())
+        menu.addItem(aboutRoot)
         menu.addItem(actionItem("Copy summary", symbol: "doc.on.doc", action: #selector(copySummary)))
         menu.addItem(actionItem("Quit", symbol: "power", action: #selector(quitApp), key: "q"))
     }
 
     private let settingsRoot = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
 
-    /// Version and where to find the rest of it. Built once — none of it changes
-    /// while the app runs.
-    private func aboutMenuItem() -> NSMenuItem {
-        let root = NSMenuItem(title: "About NetSpeed", action: nil, keyEquivalent: "")
+    /// Sits in the main menu rather than inside About: an update nobody finds is
+    /// the same as no update. Hidden entirely while there is nothing to say.
+    private let updateRow = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+
+    private func rebuildUpdateRow() {
+        guard let release = updates.newer else {
+            updateRow.isHidden = true
+            return
+        }
+        updateRow.isHidden = false
+        updateRow.title = "Update available — \(release.version)"
+        updateRow.image = symbol("arrow.down.circle.fill")
+        updateRow.action = #selector(openLink(_:))
+        updateRow.target = self
+        updateRow.representedObject = release.url.absoluteString
+    }
+
+    private let aboutRoot = NSMenuItem(title: "About NetSpeed", action: nil, keyEquivalent: "")
+
+    /// Rebuilt whenever the menu opens, like the settings: it reports the state
+    /// of the update check, which changes while the app runs.
+    private func rebuildAbout() {
+        let root = aboutRoot
         root.image = symbol("info.circle")
         let sub = NSMenu()
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         // Greyed out on purpose: a version is a caption, not something to click.
-        let label = NSMenuItem(title: "Version \(version)", action: nil, keyEquivalent: "")
+        let state: String
+        if !settings.checkForUpdates {
+            state = ""
+        } else if updates.checking {
+            state = " — checking…"
+        } else if let release = updates.newer {
+            state = " — \(release.version) available"
+        } else if updates.lastChecked != nil {
+            state = " — up to date"
+        } else {
+            state = ""
+        }
+        let label = NSMenuItem(title: "Version \(version)\(state)", action: nil, keyEquivalent: "")
         label.isEnabled = false
         sub.addItem(label)
+
+        let check = NSMenuItem(title: "Check for updates", action: #selector(checkNow), keyEquivalent: "")
+        check.target = self
+        check.state = settings.checkForUpdates ? .on : .off
+        check.toolTip = "Asks GitHub once a day whether a newer release exists."
+        sub.addItem(check)
         sub.addItem(.separator())
         for (title, url) in [("Download page — netspeed.biplane.cc", "https://netspeed.biplane.cc/"),
                              ("Other projects — biplane.cc", "https://biplane.cc/"),
@@ -296,7 +351,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             sub.addItem(mi)
         }
         root.submenu = sub
-        return root
+    }
+
+    /// The checkbox turns the daily check on and off; turning it on looks at
+    /// once rather than waiting for tomorrow.
+    @objc private func checkNow() {
+        settings.checkForUpdates.toggle()
+        if settings.checkForUpdates {
+            checkForUpdates(force: true)
+        } else {
+            rebuildUpdateRow()
+        }
+        refreshMenu()
     }
 
     @objc private func openLink(_ sender: NSMenuItem) {

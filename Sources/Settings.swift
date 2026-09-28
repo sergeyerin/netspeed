@@ -31,6 +31,7 @@ final class Settings {
         static let target = "internetTarget"
         static let indicator = "indicatorStyle"
         static let externalIP = "showExternalIP"
+        static let updates = "checkForUpdates"
     }
 
     init() {
@@ -42,6 +43,7 @@ final class Settings {
             K.target: "Cloudflare",
             K.indicator: IndicatorStyle.bars.rawValue,
             K.externalIP: true,
+            K.updates: true,
         ])
     }
 
@@ -81,6 +83,12 @@ final class Settings {
     var showExternalIP: Bool {
         get { d.bool(forKey: K.externalIP) }
         set { d.set(newValue, forKey: K.externalIP) }
+    }
+
+    /// Whether to ask GitHub once a day whether a newer release exists.
+    var checkForUpdates: Bool {
+        get { d.bool(forKey: K.updates) }
+        set { d.set(newValue, forKey: K.updates) }
     }
 
     /// What to draw left of the numbers: bars, a short label, both or nothing.
