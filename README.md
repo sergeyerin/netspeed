@@ -303,5 +303,6 @@ exist.
 | `tools/publish.sh` | renders the page and uploads it |
 | `tools/design-brief.md`, `tools/design-kit.sh` | the designer handoff and the script that packs it |
 | `tools/nginx-netspeed.conf` | server config for netspeed.biplane.cc |
-| `tools/make-icon.swift` | draws the icon at every size and writes the .icns |
+| `tools/make-icon.swift` | draws the app icon at every size and writes the .icns |
+| `tools/make-favicon.swift` | draws the site's favicons and packs the .ico |
 | `tools/banner.html`, `tools/make-banner.sh` | the README and social-preview image |

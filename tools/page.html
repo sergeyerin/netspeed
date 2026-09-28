@@ -14,9 +14,10 @@
 
       NS_DRY_RUN=1 tools/publish.sh      # writes dist/index.html
 
-  Files it refers to — the screenshots, the icon and the Barlow woff2 files —
+  Files it refers to — the screenshots, the icons and the Barlow woff2 files —
   live in tools/page-assets/ and are uploaded next to the page, which is why
-  they are plain relative paths.
+  they are plain relative paths. The favicons are generated from the app's own
+  mark by tools/make-favicon.swift; rerun it rather than editing the PNGs.
 
   Rules the page has to keep:
 
@@ -51,6 +52,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>NetSpeed — network speed in the macOS menu bar</title>
 <style>
 @font-face { font-family: 'Barlow'; font-style: normal; font-weight: 400; font-display: swap; src: url('Barlow-400.woff2') format('woff2'); }
