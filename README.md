@@ -185,6 +185,41 @@ seconds — roughly 1 KB per minute. Pinging the access point over ICMP costs no
 mobile data at all. All of it can be turned off:
 **Settings → Latency → Measure latency**.
 
+## Publishing a release
+
+One-time setup on the server (the DNS record for the subdomain must already
+point at it):
+
+```bash
+# from the Mac
+scp tools/nginx-netspeed.conf user@host:/tmp/
+
+# on the server
+sudo mkdir -p /var/www/netspeed && sudo chown "$USER" /var/www/netspeed
+sudo cp /tmp/nginx-netspeed.conf /etc/nginx/sites-available/netspeed
+sudo ln -s /etc/nginx/sites-available/netspeed /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+sudo certbot --nginx -d netspeed.biplane.cc
+# certbot writes a bare `listen 443 ssl;`, which cannot bind on this host —
+# see the comment at the top of nginx-netspeed.conf for why and the fix:
+sudo sed -i 's/^    listen 443 ssl;/    listen SERVER_IP:443 ssl;/' \
+    /etc/nginx/sites-available/netspeed
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Every release after that is one command from the Mac:
+
+```bash
+tools/make-dmg.sh
+NS_SSH=user@host tools/publish.sh     # NS_DRY_RUN=1 to render the page only
+gh release create v1.1 dist/NetSpeed-1.1.dmg dist/NetSpeed-1.1.dmg.sha256 \
+    --title "NetSpeed 1.1" --notes "..."
+```
+
+The version comes from `CFBundleShortVersionString` in `Info.plist` — bump it
+there and everything else follows.
+
 ## Layout
 
 | File | Purpose |
