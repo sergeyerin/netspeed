@@ -219,16 +219,19 @@ point at it):
 # from the Mac
 scp tools/nginx-netspeed.conf user@host:/tmp/
 
-# on the server
+# on the server — SERVER_IP is this host's own address, see the config's header
+SERVER_IP=198.51.100.10
 sudo mkdir -p /var/www/netspeed && sudo chown "$USER" /var/www/netspeed
-sudo cp /tmp/nginx-netspeed.conf /etc/nginx/sites-available/netspeed
+# tee rather than a redirect: the redirect would run as you, not as root
+sed "s/SERVER_IP/$SERVER_IP/g" /tmp/nginx-netspeed.conf \
+    | sudo tee /etc/nginx/sites-available/netspeed > /dev/null
 sudo ln -s /etc/nginx/sites-available/netspeed /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 sudo certbot --nginx -d netspeed.biplane.cc
 # certbot writes a bare `listen 443 ssl;`, which cannot bind on this host —
 # see the comment at the top of nginx-netspeed.conf for why and the fix:
-sudo sed -i 's/^    listen 443 ssl;/    listen SERVER_IP:443 ssl;/' \
+sudo sed -i "s/^    listen 443 ssl;/    listen $SERVER_IP:443 ssl;/" \
     /etc/nginx/sites-available/netspeed
 sudo nginx -t && sudo systemctl reload nginx
 ```
@@ -245,7 +248,7 @@ gh release create v1.1 dist/NetSpeed-1.1.dmg dist/NetSpeed-1.1.dmg.sha256 \
     --title "NetSpeed 1.1" --notes "..."
 
 # 3. point the page at it (refuses to run if the asset is not there)
-NS_SSH=user@host tools/publish.sh     # NS_DRY_RUN=1 renders locally only
+NS_SSH=user@host tools/publish.sh            # NS_DRY_RUN=1 renders locally only
 ```
 
 The image is hosted once, on GitHub Releases: free, on a CDN, with download
