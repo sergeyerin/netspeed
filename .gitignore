@@ -15,3 +15,6 @@ tools/page-assets/
 tools/design-brief.md
 tools/design-kit.sh
 tools/make-favicon.swift
+
+# Stray build output: a compiled binary that once landed here by accident.
+/main
