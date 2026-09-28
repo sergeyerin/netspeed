@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var networkID: String?
     private var lastSSID: Data?
     private var wasOnline = true
+    private let alreadyRunning = AlreadyRunningWindow()
 
     private let gatewayEvery: TimeInterval = 5
     private let internetEvery: TimeInterval = 10
@@ -42,10 +43,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard claimSingleInstance() else {
-            // Another copy already holds the menu bar. Leave without touching
-            // anything — no status item was created, so nothing flickers.
-            NSApp.terminate(nil)
+        switch claimSingleInstance() {
+        case .proceed:
+            break
+        case .alreadyRunning(let version):
+            // Say so before leaving. Without a window or a Dock icon, a copy
+            // that just exits is indistinguishable from one that failed to
+            // start, and the running instance is a single small icon that is
+            // easy to miss — which is how three of them accumulated here.
+            // The app stays alive until the message is dismissed; it holds no
+            // status item, so there is still only one icon in the menu bar.
+            reportAlreadyRunning(version: version)
             return
         }
         Interfaces.reload()
@@ -77,6 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private enum Claim {
+        case proceed
+        case alreadyRunning(version: String?)
+    }
+
     /// Decides whether this launch should carry on, and clears the way if so.
     ///
     /// Three copies had piled up here — a build, one started straight from the
@@ -88,8 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// or a newer one, is left alone and this launch bows out instead: its
     /// status item is already there, and replacing it would only make the icon
     /// blink and throw away the history and session totals it has collected.
-    private func claimSingleInstance() -> Bool {
-        guard let id = Bundle.main.bundleIdentifier else { return true }
+    private func claimSingleInstance() -> Claim {
+        guard let id = Bundle.main.bundleIdentifier else { return .proceed }
         let me = NSRunningApplication.current
         let mine = Bundle.main.version
         let started = me.launchDate ?? Date()
@@ -102,26 +115,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let theirs = other.bundleURL.flatMap(Bundle.init(url:))?.version
             switch theirs.map({ Version.compare($0, mine) }) ?? .orderedAscending {
             case .orderedDescending:
-                return false                       // a newer copy is already running
+                return .alreadyRunning(version: theirs)   // a newer copy is running
             case .orderedSame:
                 // Same version: the one that started first keeps the menu bar.
                 // Without this tie-break two copies launched together would each
                 // see the other and both step aside, leaving none.
-                if (other.launchDate ?? .distantPast) < started { return false }
+                if (other.launchDate ?? .distantPast) < started {
+                    return .alreadyRunning(version: theirs)
+                }
                 superseded.append(other)
             case .orderedAscending:
                 superseded.append(other)
             }
         }
 
-        guard !superseded.isEmpty else { return true }
+        guard !superseded.isEmpty else { return .proceed }
         superseded.forEach { $0.terminate() }
         // A copy ignoring a polite quit still holds a status item, which is the
         // whole problem being solved here.
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             superseded.filter { !$0.isTerminated }.forEach { $0.forceTerminate() }
         }
-        return true
+        return .proceed
+    }
+
+    private func reportAlreadyRunning(version: String?) {
+        let mine = Bundle.main.version
+        let message: String
+        if let version, Version.compare(version, mine) == .orderedDescending {
+            message = "Version \(version) is already running and this copy is \(mine), "
+                + "so the newer one was left in place. Look for the signal bars in the "
+                + "menu bar at the top of the screen."
+        } else {
+            message = "Look for the signal bars in the menu bar at the top of the screen. "
+                + "NetSpeed has no Dock icon and no window."
+        }
+        alreadyRunning.show(title: "NetSpeed is already running", message: message) {
+            NSApp.terminate(nil)
+        }
     }
 
     private func restartTimer() {
