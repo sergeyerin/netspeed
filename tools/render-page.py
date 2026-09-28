@@ -2,9 +2,13 @@
 """Renders the download page for netspeed.biplane.cc.
 
 Reads the release facts from the environment so the page can never disagree
-with the image being published:
+with the image it points at:
 
     NS_VERSION  NS_SHA  NS_SIZE  NS_DATE
+
+The image itself is not hosted here — the button links straight to the GitHub
+release asset. One copy of the bytes means the page and the download cannot
+drift apart, which is exactly what happened while both were published.
 
 Writes the finished HTML to stdout.
 """
@@ -18,8 +22,11 @@ missing = [f for f in FIELDS if not os.environ.get(f)]
 if missing:
     sys.exit(f"missing: {', '.join(missing)}")
 
+REPO = "https://github.com/sergeyerin/netspeed"
+
 version, sha, size, date = (html.escape(os.environ[f]) for f in FIELDS)
 dmg = f"NetSpeed-{version}.dmg"
+download = f"{REPO}/releases/download/v{version}/{dmg}"
 
 print(f"""<!doctype html>
 <html lang="en">
@@ -107,10 +114,13 @@ print(f"""<!doctype html>
 
   <div class="card">
     <div class="get">
-      <a class="button" href="{dmg}">Download {dmg}</a>
+      <a class="button" href="{download}">Download {dmg}</a>
       <span class="meta">{size} · version {version} · {date} · macOS 13+, Apple silicon</span>
     </div>
     <span class="hash">SHA-256 {sha}</span>
+    <span class="meta" style="display:block;margin-top:.5rem">
+      Hosted on <a href="{REPO}/releases" style="color:inherit">GitHub Releases</a>.
+    </span>
   </div>
 
   <div class="card">

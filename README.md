@@ -208,17 +208,25 @@ sudo sed -i 's/^    listen 443 ssl;/    listen SERVER_IP:443 ssl;/' \
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Every release after that is one command from the Mac:
+Every release, in order — the page points at an exact release asset, so the
+release has to exist first:
 
 ```bash
+# 1. bump CFBundleShortVersionString in Info.plist, then
 tools/make-dmg.sh
-NS_SSH=user@host tools/publish.sh     # NS_DRY_RUN=1 to render the page only
+
+# 2. publish the image — this is the only place it is hosted
 gh release create v1.1 dist/NetSpeed-1.1.dmg dist/NetSpeed-1.1.dmg.sha256 \
     --title "NetSpeed 1.1" --notes "..."
+
+# 3. point the page at it (refuses to run if the asset is not there)
+NS_SSH=user@host tools/publish.sh     # NS_DRY_RUN=1 renders locally only
 ```
 
-The version comes from `CFBundleShortVersionString` in `Info.plist` — bump it
-there and everything else follows.
+The image is hosted once, on GitHub Releases: free, on a CDN, with download
+counts, and impossible to have a second copy that says a different version.
+The site keeps the short address and the install instructions —
+`netspeed.biplane.cc/download` redirects to the newest release.
 
 ## Layout
 

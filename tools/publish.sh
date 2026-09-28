@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 #
-# Publishes the disk image and the download page to netspeed.biplane.cc.
+# Publishes the download page to netspeed.biplane.cc.
 #
 #   NS_SSH=user@host tools/publish.sh
 #   NS_DRY_RUN=1 tools/publish.sh        # render the page, copy nothing
 #
-# The server needs nothing beyond a directory of static files: the page links
-# straight to the image. Nginx config lives next door in nginx-netspeed.conf.
+# The image is not copied here: the page links straight to the GitHub release
+# asset, so the bytes exist in one place and the two cannot drift apart. Build
+# and publish the release first, then run this to point the page at it.
+#
+# The local image is still needed — its size and checksum go on the page.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -46,18 +49,18 @@ if [[ -n "$NS_DRY_RUN" ]]; then
     exit 0
 fi
 
-echo "-- uploading $DMG ($SIZE)"
-ssh "$NS_SSH" "mkdir -p '$NS_ROOT'"
-# Image first: if the page fails to copy, the old page still points at a file
-# that exists. The other way round it would link to something that does not.
-scp "$DMG" "$NS_SSH:$NS_ROOT/"
-printf '%s  %s\n' "$SHA" "NetSpeed-${VERSION}.dmg" > "$WORK/NetSpeed-${VERSION}.dmg.sha256"
-scp "$WORK/NetSpeed-${VERSION}.dmg.sha256" "$NS_SSH:$NS_ROOT/"
-scp "$WORK/index.html" "$NS_SSH:$NS_ROOT/index.html"
+# The page names an exact release asset, so refuse to publish one that is not
+# there yet: a page linking to a missing download is worse than a stale page.
+RELEASE_URL="https://github.com/sergeyerin/netspeed/releases/download/v${VERSION}/NetSpeed-${VERSION}.dmg"
+if ! curl -sfI -L -o /dev/null "$RELEASE_URL"; then
+    echo "No release asset at $RELEASE_URL" >&2
+    echo "Publish it first: gh release create v${VERSION} $DMG ${DMG}.sha256 --title \"NetSpeed ${VERSION}\" --notes ..." >&2
+    exit 1
+fi
 
-# Keep the three most recent images: enough to roll back, and the disk does not
-# fill up on its own.
-ssh "$NS_SSH" "cd '$NS_ROOT' && ls -t *.dmg 2>/dev/null | tail -n +4 | xargs -r rm -v --"
+echo "-- publishing the page for ${VERSION} ($SIZE)"
+ssh "$NS_SSH" "mkdir -p '$NS_ROOT'"
+scp "$WORK/index.html" "$NS_SSH:$NS_ROOT/index.html"
 
 echo "-- published: https://netspeed.biplane.cc/"
 ssh "$NS_SSH" "ls -sh '$NS_ROOT'"
