@@ -12,9 +12,11 @@
 
   Rules the page has to keep:
 
-  * One file, no external assets. No CDN, no web fonts, no images pulled from
-    elsewhere — the page is served as a single static file and must render with
-    the network unplugged after it loads. Inline any SVG or base64 an image.
+  * Nothing from a third party. No CDN, no Google Fonts, no analytics, no
+    images hotlinked from elsewhere: the page must not depend on a host other
+    than its own. Files of your own are fine — drop them in tools/page-assets/
+    and they are uploaded next to the page, so `<img src="shot.png">` works.
+    Screenshots of the app are in preview/ if you want them.
   * Light and dark. The design is expected to work in both; today that is done
     with `prefers-color-scheme` over a handful of custom properties.
   * These placeholders must survive somewhere in the markup. A build step

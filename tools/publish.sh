@@ -62,5 +62,14 @@ echo "-- publishing the page for ${VERSION} ($SIZE)"
 ssh "$NS_SSH" "mkdir -p '$NS_ROOT'"
 scp "$WORK/index.html" "$NS_SSH:$NS_ROOT/index.html"
 
+# Anything the page refers to by a relative path — screenshots, an icon, a font.
+# Kept beside the markup so a redesign can add files without touching this.
+shopt -s nullglob
+for asset in tools/page-assets/*; do
+    [[ "$(basename "$asset")" == "README.md" ]] && continue
+    echo "-- asset $(basename "$asset")"
+    scp -r "$asset" "$NS_SSH:$NS_ROOT/"
+done
+
 echo "-- published: https://netspeed.biplane.cc/"
 ssh "$NS_SSH" "ls -sh '$NS_ROOT'"
