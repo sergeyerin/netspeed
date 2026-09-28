@@ -257,6 +257,13 @@ link:
 NS_DRY_RUN=1 tools/publish.sh    # renders dist/index.html with real values
 ```
 
+To hand the page to someone else, `tools/design-kit.sh` assembles everything
+they need — the brief, the template, a rendered preview with the current
+release's values, screenshots and the icon — into `dist/netspeed-design-kit/`
+and a zip beside it. Nothing in the kit is maintained by hand: the preview and
+the icons are generated, so it cannot show a version or a mark that does not
+exist.
+
 ## Layout
 
 | File | Purpose |
@@ -278,5 +285,6 @@ NS_DRY_RUN=1 tools/publish.sh    # renders dist/index.html with real values
 | `tools/page.html` | the download page markup, ready to be redesigned |
 | `tools/render-page.py` | fills the page with the facts of the release |
 | `tools/publish.sh` | renders the page and uploads it |
+| `tools/design-brief.md`, `tools/design-kit.sh` | the designer handoff and the script that packs it |
 | `tools/nginx-netspeed.conf` | server config for netspeed.biplane.cc |
 | `tools/make-icon.swift` | draws the icon at every size and writes the .icns |
