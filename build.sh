@@ -14,6 +14,13 @@ rm -rf "$APP"
 mkdir -p "$MACOS_DIR" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 
+# The icon is generated once and committed; regenerate with tools/make-icon.swift.
+if [[ -f Resources/AppIcon.icns ]]; then
+  cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+else
+  echo "-- no Resources/AppIcon.icns, building without an icon" >&2
+fi
+
 echo "-- compiling"
 swiftc \
   -O -whole-module-optimization \

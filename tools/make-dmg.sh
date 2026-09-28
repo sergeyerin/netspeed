@@ -32,5 +32,7 @@ hdiutil create \
     "$DMG"
 
 rm -rf dist/stage
-shasum -a 256 "$DMG" | tee "${DMG}.sha256"
+# The checksum names the file alone, not dist/NetSpeed-x.y.dmg: `shasum -c`
+# on someone else's machine would look for it inside a dist/ directory.
+(cd dist && shasum -a 256 "$(basename "$DMG")" | tee "$(basename "$DMG").sha256")
 echo "-- done: $DMG ($(du -h "$DMG" | cut -f1))"

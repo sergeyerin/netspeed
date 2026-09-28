@@ -136,7 +136,8 @@ print(f"""<!doctype html>
 
   <footer>
     Source, issues and release notes on
-    <a href="https://github.com/sergeyerin/netspeed">GitHub</a>.
+    <a href="https://github.com/sergeyerin/netspeed">GitHub</a>.<br>
+    Other projects at <a href="https://biplane.cc/">biplane.cc</a>.
   </footer>
 </main>
 </body>

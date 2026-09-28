@@ -268,11 +268,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
         menu.addItem(settingsRoot)
+        menu.addItem(aboutMenuItem())
         menu.addItem(actionItem("Copy summary", symbol: "doc.on.doc", action: #selector(copySummary)))
         menu.addItem(actionItem("Quit", symbol: "power", action: #selector(quitApp), key: "q"))
     }
 
     private let settingsRoot = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+
+    /// Version and where to find the rest of it. Built once — none of it changes
+    /// while the app runs.
+    private func aboutMenuItem() -> NSMenuItem {
+        let root = NSMenuItem(title: "About NetSpeed", action: nil, keyEquivalent: "")
+        root.image = symbol("info.circle")
+        let sub = NSMenu()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        // Greyed out on purpose: a version is a caption, not something to click.
+        let label = NSMenuItem(title: "Version \(version)", action: nil, keyEquivalent: "")
+        label.isEnabled = false
+        sub.addItem(label)
+        sub.addItem(.separator())
+        for (title, url) in [("Download page — netspeed.biplane.cc", "https://netspeed.biplane.cc/"),
+                             ("Other projects — biplane.cc", "https://biplane.cc/"),
+                             ("Source on GitHub", "https://github.com/sergeyerin/netspeed")] {
+            let mi = NSMenuItem(title: title, action: #selector(openLink(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = url
+            sub.addItem(mi)
+        }
+        root.submenu = sub
+        return root
+    }
+
+    @objc private func openLink(_ sender: NSMenuItem) {
+        guard let string = sender.representedObject as? String, let url = URL(string: string) else { return }
+        NSWorkspace.shared.open(url)
+    }
 
     private func refreshMenu() {
         guard menuOpen else { return }
