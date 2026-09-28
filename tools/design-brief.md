@@ -71,13 +71,17 @@ means a page missing a placeholder cannot ship at all.
 
 ## The look it has now
 
-Nothing here is precious; it is a first pass, not a design.
+A blueprint: steel-blue accent on a technical ground, Barlow Condensed headings
+over Barlow, square corners, hairline borders and `+` registration marks at the
+corners of cards and figures. Three sections — the download, "it isn't broken,
+it's Gatekeeper", and what the four bars mean.
 
-- System font throughout (`-apple-system`), which matches the app.
-- Green accent: `#1d8a3e` on light, `#30d158` on dark. Same green as the icon and
-  as a healthy connection in the app itself. Worth keeping the tie, but the shade
-  is not sacred.
-- Two cards on a plain background: the download, then the installation steps.
+- The fonts are served from beside the page, not from Google, and carry their
+  OFL licence in `assets/Barlow-OFL.txt`.
+- Dark mode redefines a handful of tokens at the end of the styles; the
+  screenshots swap with it through `<picture>`.
+- The two Copy buttons are ten lines of plain JavaScript at the bottom of the
+  page.
 
 The app's own visual language is a four-bar signal scale coloured green through
 amber to red by how the connection behaves — see `screenshots/`. Anything that

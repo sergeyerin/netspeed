@@ -2,27 +2,36 @@
 <!--
   Download page for netspeed.biplane.cc.
 
-  FOR WHOEVER REDESIGNS THIS
-  ==========================
-  Edit this file freely — markup, styles, layout, wording. Open it straight in
-  a browser to work on it; the placeholders will show as literal text, which is
-  fine. To see it with real values:
+  The layout and copy came from a designer; what ships is the same markup with
+  its toolchain removed — the design-tool runtime, the design-system bundle and
+  the Google Fonts import are gone, and the CSS is inlined, so the page is one
+  self-contained file again.
+
+  FOR WHOEVER EDITS THIS NEXT
+  ===========================
+  Open it straight in a browser to work on it; the placeholders show as literal
+  text, which is fine. To see it with real values:
 
       NS_DRY_RUN=1 tools/publish.sh      # writes dist/index.html
+
+  Files it refers to — the screenshots, the icon and the Barlow woff2 files —
+  live in tools/page-assets/ and are uploaded next to the page, which is why
+  they are plain relative paths.
 
   Rules the page has to keep:
 
   * Nothing from a third party. No CDN, no Google Fonts, no analytics, no
-    images hotlinked from elsewhere: the page must not depend on a host other
-    than its own. Files of your own are fine — drop them in tools/page-assets/
-    and they are uploaded next to the page, so `<img src="shot.png">` works.
-    Screenshots of the app are in preview/ if you want them.
-  * Light and dark. The design is expected to work in both; today that is done
-    with `prefers-color-scheme` over a handful of custom properties.
-  * These placeholders must survive somewhere in the markup. A build step
-    substitutes them, and the values come from the disk image actually being
-    published, so the page cannot advertise a version or checksum that differs
-    from the download:
+    hotlinked images: the page must not depend on a host other than its own.
+    The audience is people whose connection is misbehaving — that is what sent
+    them here — and half of them reach it through a VPN. Add files of your own
+    to tools/page-assets/ instead.
+  * Light and dark, both. The design system carries light tokens; the dark ones
+    are the @media block at the end of the styles, and the two screenshots swap
+    with it through <picture>.
+  * These placeholders must survive somewhere in the markup. They are
+    substituted at publish time from the disk image actually being released, so
+    the page cannot advertise a version or a checksum that differs from the
+    file people get:
 
         {{VERSION}}       1.1
         {{DMG}}           NetSpeed-1.1.dmg
@@ -32,10 +41,11 @@
         {{SHA}}           64 hex characters
         {{REPO}}          https://github.com/sergeyerin/netspeed
 
-  * The Gatekeeper instructions have to stay, in some form. The app is signed
-    ad-hoc rather than with a paid Apple certificate, so the first launch is
-    refused on every machine that downloads it. Without a visible way past
-    that, the download is useless to most people.
+    Publishing stops with an error if one goes missing.
+  * The Gatekeeper instructions have to stay. The app is signed ad-hoc rather
+    than with a paid Apple certificate, so the first launch is refused on every
+    machine that downloads it. Without a visible way past that, the download is
+    useless to most people.
 -->
 <html lang="en">
 <head>
@@ -43,120 +53,449 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NetSpeed — network speed in the macOS menu bar</title>
 <style>
+@font-face { font-family: 'Barlow'; font-style: normal; font-weight: 400; font-display: swap; src: url('Barlow-400.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow'; font-style: normal; font-weight: 500; font-display: swap; src: url('Barlow-500.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow'; font-style: normal; font-weight: 700; font-display: swap; src: url('Barlow-700.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-style: normal; font-weight: 400; font-display: swap; src: url('BarlowCondensed-400.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-style: normal; font-weight: 600; font-display: swap; src: url('BarlowCondensed-600.woff2') format('woff2'); }
+
+/* Industry — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+:root {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --color-accent-2-100: #eef6ff;
+  --color-accent-2-200: #d6ebff;
+  --color-accent-2-300: #bdd8f2;
+  --color-accent-2-400: #9ebbd8;
+  --color-accent-2-500: #7e9cb8;
+  --color-accent-2-600: #627d98;
+  --color-accent-2-700: #486077;
+  --color-accent-2-800: #314457;
+  --color-accent-2-900: #1f2d3a;
+
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+.blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+}
+/* The overlay image treatments (halftone, duotone) clip their overlay
+   (overflow:hidden); a blueprint wrapper draws its registration marks
+   outside the box, so when both classes share a wrapper the frame must
+   win. */
+.blueprint.halftone, .blueprint.plate, .blueprint.duotone { overflow: visible; }
+.blueprint > .corner {
+  position: absolute; width: 11px; height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.blueprint > .corner::before, .blueprint > .corner::after {
+  content: ""; position: absolute; background: currentColor;
+}
+.blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.blueprint > .corner::after  { top: 5px; left: 0; width: 100%; height: 1px; }
+.blueprint > .corner.tl { top: -6px; left: -6px; }
+.blueprint > .corner.tr { top: -6px; right: -6px; }
+.blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+.duotone{position:relative;overflow:hidden}
+.duotone::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:var(--color-accent);mix-blend-mode:color}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components — built with the tokens above. Plain CSS
+   on plain HTML: no JavaScript, no build step. Each class is documented in
+   readme.md and demonstrated in foundations/ and components/.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; }
+h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — rules — */
+.hr {
+  height: 1px; border: 0; margin: var(--space-4) 0;
+  background: var(--color-divider);
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
+     the pair sits side by side in sign-up rows */
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.radio input, .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--color-divider);
+}
+.radio:hover .dot { border-color: var(--color-accent); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: none;
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+
+/* — tables — */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
+}
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 20px;
+}
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* — blueprint frame: components are wireframe objects (see .blueprint
+     and .corner above) — square, transparent, hairline-bordered — */
+.card, .btn, .input, .tag, .seg, .dialog { border-radius: 0; }
+.card, .dialog { background: transparent; border: 1px solid var(--color-divider); }
+.btn { border: 1px solid var(--color-divider); }
+.btn-primary { border-color: var(--color-accent); }
+.btn-ghost { border-color: transparent; }
+
+:root { color-scheme: light dark; }
+@media (prefers-color-scheme: dark) {
   :root {
-    color-scheme: light dark;
-    --bg: #f6f6f7;
-    --card: #ffffff;
-    --ink: #17181a;
-    --dim: #6b6f76;
-    --line: #e2e3e6;
-    --accent: #1d8a3e;
+    --color-bg: #16181a; --color-surface: #1e2022; --color-text: #e6e7e8;
+    --color-divider: color-mix(in srgb, #e6e7e8 18%, transparent);
+    --color-accent: #7fa3c6; --color-accent-600: #93b3d2; --color-accent-700: #a9c3dc;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #17181a;
-      --card: #202226;
-      --ink: #f2f3f5;
-      --dim: #9aa0a8;
-      --line: #32353a;
-      --accent: #30d158;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 3rem 1.25rem 4rem;
-    background: var(--bg);
-    color: var(--ink);
-    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  }
-  main { max-width: 42rem; margin: 0 auto; }
-  h1 { font-size: 2rem; margin: 0 0 .35rem; letter-spacing: -.02em; }
-  .lead { color: var(--dim); margin: 0 0 2rem; font-size: 1.05rem; }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-  .get { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
-  a.button {
-    display: inline-block;
-    background: var(--accent);
-    color: #fff;
-    text-decoration: none;
-    font-weight: 600;
-    padding: .7rem 1.4rem;
-    border-radius: 9px;
-  }
-  a.button:hover { filter: brightness(1.08); }
-  .meta { color: var(--dim); font-size: .9rem; }
-  code, .hash {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .85rem;
-  }
-  .hash { color: var(--dim); word-break: break-all; display: block; margin-top: 1rem; }
-  h2 { font-size: 1.05rem; margin: 0 0 .75rem; }
-  ol { margin: 0; padding-left: 1.2rem; }
-  li { margin-bottom: .5rem; }
-  pre {
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: .7rem .9rem;
-    overflow-x: auto;
-    margin: .6rem 0 0;
-  }
-  footer { color: var(--dim); font-size: .9rem; text-align: center; margin-top: 2.5rem; }
-  footer a { color: inherit; }
+}
+body { margin: 0; text-wrap: pretty; }
+a { color: var(--color-accent-700); text-underline-offset: 3px; }
+a:hover { color: var(--color-text); }
 </style>
 </head>
 <body>
-<main>
-  <h1>NetSpeed</h1>
-  <p class="lead">
-    Network speed and link quality in the macOS menu bar. Native Swift, no
-    dependencies, about 0.5% of one core at idle.
-  </p>
+<div style="max-width: 1080px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 56px);">
 
-  <div class="card">
-    <div class="get">
-      <a class="button" href="{{DOWNLOAD_URL}}">Download {{DMG}}</a>
-      <span class="meta">{{SIZE}} · version {{VERSION}} · {{DATE}} · macOS 13+, Apple silicon</span>
+  <header style="display: flex; align-items: center; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--color-divider);">
+    <a href="#top" style="display: flex; align-items: center; gap: 10px; margin-right: auto; color: var(--color-text); text-decoration: none;">
+      <img src="icon-256.png" alt="" width="28" height="28" style="width: 28px; height: 28px;">
+      <span style="font-family: var(--font-heading); font-weight: 600; font-size: 20px; letter-spacing: 0.02em; text-transform: uppercase;">NetSpeed</span>
+    </a>
+    <nav style="display: flex; gap: 20px; font-size: 14px;">
+      <a href="#first-launch">First launch</a>
+      <a href="{{REPO}}">GitHub</a>
+    </nav>
+  </header>
+
+  <section id="top" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: clamp(32px, 6vw, 72px); align-items: start; padding: clamp(40px, 8vw, 88px) 0 clamp(48px, 8vw, 80px);">
+    <div style="display: flex; flex-direction: column; gap: 24px; min-width: 0;">
+      <h1 style="font-family: var(--font-heading); font-weight: 600; font-size: clamp(44px, 6.4vw, 80px); line-height: 1.02; letter-spacing: 0.005em; text-transform: uppercase; margin: 0;">
+        <span style="display: block;">What your network</span>
+        <span style="display: block;">is actually doing.</span>
+      </h1>
+      <p style="font-size: 17px; line-height: 1.55; max-width: 46ch; margin: 0;">
+        Speed, latency and link quality in the macOS menu bar — and, on a phone hotspot, what the phone says about its cellular signal. Free, no account, no server.
+      </p>
+
+      <div class="blueprint" style="display: flex; flex-direction: column; gap: 16px; padding: 24px; border: 1px solid var(--color-divider);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+          <a class="btn btn-primary blueprint" href="{{DOWNLOAD_URL}}" style="font-size: 18px; padding: 14px 24px; color: var(--color-bg); text-decoration: none;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"></path><path d="m7 10 5 5 5-5"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
+            Download {{DMG}}
+          </a>
+          <span style="font-size: 14px; color: color-mix(in srgb, var(--color-text) 70%, transparent);">Version {{VERSION}} · {{SIZE}} · {{DATE}}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; font-size: 13px; border-top: 1px solid var(--color-divider); padding-top: 16px;">
+          <span style="color: color-mix(in srgb, var(--color-text) 62%, transparent);">Requires</span>
+          <span>macOS 13 or later, Apple silicon</span>
+          <span style="color: color-mix(in srgb, var(--color-text) 62%, transparent);">Hosted on</span>
+          <span><a href="{{REPO}}/releases">GitHub Releases</a></span>
+          <span style="color: color-mix(in srgb, var(--color-text) 62%, transparent);">SHA-256</span>
+          <span style="display: flex; gap: 10px; align-items: baseline; min-width: 0;">
+            <code style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; min-width: 0;">{{SHA}}</code>
+            <button class="btn btn-ghost" data-copy="{{SHA}}" style="font-size: 13px; flex-shrink: 0;">Copy</button>
+          </span>
+        </div>
+      </div>
+
+      <a href="#first-launch" style="display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.5; color: var(--color-text); text-decoration: none; max-width: 52ch;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+        <span>macOS will refuse to open it the first time. That’s expected — <span style="color: var(--color-accent-700); text-decoration: underline; text-underline-offset: 3px;">here’s the two-click way past it</span>.</span>
+      </a>
     </div>
-    <span class="hash">SHA-256 {{SHA}}</span>
-    <span class="meta" style="display:block;margin-top:.5rem">
-      Hosted on <a href="{{REPO}}/releases" style="color:inherit">GitHub Releases</a>.
-    </span>
-  </div>
 
-  <div class="card">
-    <h2>Installing</h2>
-    <ol>
-      <li>Open the image and drag <strong>NetSpeed</strong> into Applications.</li>
-      <li>
-        Launch it. macOS will refuse the first time — the app is signed only
-        ad-hoc, not with a paid Apple developer certificate. Open
-        <strong>System Settings → Privacy &amp; Security</strong>, find the
-        message about NetSpeed and press <strong>Open Anyway</strong>.
+    <figure class="blueprint" style="margin: 0; justify-self: center; padding: 16px; border: 1px solid var(--color-divider); width: min(100%, 368px);">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <picture>
+        <source srcset="assets/menu-dark.png" media="(prefers-color-scheme: dark)">
+        <picture><source srcset="menu-dark.png" media="(prefers-color-scheme: dark)"><img src="menu-light.png" alt="The NetSpeed menu: current download and upload speed with a graph, latency to Cloudflare and the access point, hotspot phone signal and battery, and Wi-Fi connection details." width="336" height="606" loading="eager" style="width: 100%; height: auto; display: block;"></picture>
+      </picture>
+      <figcaption style="font-size: 12px; margin-top: 10px; color: color-mix(in srgb, var(--color-text) 62%, transparent);">The menu, tethered to a phone on 5G.</figcaption>
+    </figure>
+  </section>
+
+  <section id="first-launch" style="padding: clamp(40px, 7vw, 72px) 0; border-top: 1px solid var(--color-divider);">
+    <span style="display: block; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: var(--color-accent-700); margin-bottom: 12px;">02 · First launch</span>
+    <h2 style="font-family: var(--font-heading); font-weight: 600; font-size: clamp(32px, 4.4vw, 52px); line-height: 1.05; text-transform: uppercase; margin: 0 0 16px;">It isn’t broken. It’s Gatekeeper.</h2>
+    <p style="font-size: 16px; line-height: 1.55; max-width: 62ch; margin: 0 0 32px;">
+      NetSpeed is signed ad-hoc, not with a paid Apple developer certificate, so macOS blocks the first launch on every Mac that downloads it. You only do this once.
+    </p>
+
+    <ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px;">
+      <li class="blueprint" style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border: 1px solid var(--color-divider);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="font-family: var(--font-heading); font-weight: 600; font-size: 40px; line-height: 1; color: var(--color-accent);">1</span>
+        <strong style="font-family: var(--font-heading); font-weight: 600; font-size: 22px; line-height: 1.15;">Drag it into Applications</strong>
+        <span style="font-size: 15px; line-height: 1.5;">Open {{DMG}} and drag <b>NetSpeed</b> onto the Applications folder.</span>
       </li>
-      <li>
-        Or clear the download flag from a terminal and open it normally:
-        <pre><code>xattr -dr com.apple.quarantine /Applications/NetSpeed.app</code></pre>
+      <li class="blueprint" style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border: 1px solid var(--color-divider);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="font-family: var(--font-heading); font-weight: 600; font-size: 40px; line-height: 1; color: var(--color-accent);">2</span>
+        <strong style="font-family: var(--font-heading); font-weight: 600; font-size: 22px; line-height: 1.15;">Launch it — and let it fail</strong>
+        <span style="font-size: 15px; line-height: 1.5;">macOS says it can’t verify the developer. Click <b>Done</b>, not <b>Move to Trash</b>.</span>
+      </li>
+      <li class="blueprint" style="display: flex; flex-direction: column; gap: 10px; padding: 24px; border: 1px solid var(--color-accent);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="font-family: var(--font-heading); font-weight: 600; font-size: 40px; line-height: 1; color: var(--color-accent);">3</span>
+        <strong style="font-family: var(--font-heading); font-weight: 600; font-size: 22px; line-height: 1.15;">Press Open Anyway</strong>
+        <span style="font-size: 15px; line-height: 1.5;">Go to <b>System Settings → Privacy &amp; Security</b>, scroll to the note about NetSpeed and press <b>Open Anyway</b>. Confirm with your password.</span>
       </li>
     </ol>
-    <p class="meta" style="margin-bottom:0">
-      There is no Dock icon and no window: everything lives in the menu bar.
-      Enable startup in <strong>Settings → Launch at login</strong>.
-    </p>
-  </div>
 
-  <footer>
-    Source, issues and release notes on
-    <a href="{{REPO}}">GitHub</a>.<br>
-    Other projects at <a href="https://biplane.cc/">biplane.cc</a>.
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 24px; padding: 20px 24px; border: 1px dashed var(--color-divider);">
+      <span style="font-size: 15px;">Prefer the terminal? Clear the download flag instead of steps 2–3:</span>
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <code style="flex: 1 1 320px; min-width: 0; overflow-x: auto; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; padding: 10px 12px; background: var(--color-surface); border: 1px solid var(--color-divider);">xattr -dr com.apple.quarantine /Applications/NetSpeed.app</code>
+        <button class="btn btn-secondary" data-copy="xattr -dr com.apple.quarantine /Applications/NetSpeed.app" style="font-size: 14px;">Copy</button>
+      </div>
+    </div>
+
+    <p style="font-size: 15px; line-height: 1.55; margin: 24px 0 0; max-width: 62ch;">
+      After that there’s no Dock icon and no window — look for the four bars in the menu bar. To start it with your Mac, turn on <b>Settings → Launch at login</b>.
+    </p>
+  </section>
+
+  <section style="padding: clamp(40px, 7vw, 72px) 0; border-top: 1px solid var(--color-divider); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: clamp(32px, 5vw, 56px); align-items: center;">
+    <div style="min-width: 0;">
+      <span style="display: block; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: var(--color-accent-700); margin-bottom: 12px;">03 · In the menu bar</span>
+      <h2 style="font-family: var(--font-heading); font-weight: 600; font-size: clamp(28px, 3.6vw, 40px); line-height: 1.08; text-transform: uppercase; margin: 0 0 16px;">Four bars that mean something.</h2>
+      <p style="font-size: 16px; line-height: 1.55; margin: 0 0 12px; max-width: 48ch;">The bars go green, amber or red by how the connection actually behaves — not by signal strength. On a hotspot, the phone’s own cellular type sits next to them.</p>
+      <p style="font-size: 14px; line-height: 1.55; margin: 0; color: color-mix(in srgb, var(--color-text) 68%, transparent); max-width: 48ch;">Native Swift, no dependencies, about 0.5% of one core at idle.</p>
+    </div>
+    <figure class="blueprint" style="margin: 0; padding: 16px; border: 1px solid var(--color-divider);">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <picture>
+        <source srcset="assets/tray-dark.png" media="(prefers-color-scheme: dark)">
+        <picture><source srcset="tray-dark.png" media="(prefers-color-scheme: dark)"><img src="tray-light.png" alt="The menu-bar indicator in seven states: fast, so-so and crawling Wi-Fi, sign-in needed, no network, hotspot on 5G and on EDGE." width="460" height="336" loading="lazy" style="width: 100%; height: auto; display: block;"></picture>
+      </picture>
+    </figure>
+  </section>
+
+  <footer style="display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; padding: 24px 0 40px; border-top: 1px solid var(--color-divider); font-size: 14px; color: color-mix(in srgb, var(--color-text) 68%, transparent);">
+    <span>Source, issues and release notes on <a href="{{REPO}}">GitHub</a>.</span>
+    <span>Other projects at <a href="https://biplane.cc/">biplane.cc</a>.</span>
   </footer>
-</main>
+</div>
+<script>
+// Two buttons that copy a string and say so for a moment. This replaced the
+  // design tool's runtime, which shipped 68 KB to do the same thing.
+  for (const button of document.querySelectorAll('[data-copy]')) {
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy);
+      } catch {
+        return;   // no clipboard permission: leave the label alone
+      }
+      const label = button.textContent;
+      button.textContent = 'Copied';
+      setTimeout(() => { button.textContent = label; }, 1600);
+    });
+  }
+</script>
 </body>
 </html>
