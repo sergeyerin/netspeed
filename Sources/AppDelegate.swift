@@ -7,8 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let gateway = GatewayProbe()
     private let internet = InternetProbe()
     private let settings = Settings.shared
-    private let updates = UpdateChecker(
-        currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0")
+    private let updates = UpdateChecker(currentVersion: Bundle.main.version)
 
     private let menu = NSMenu()
     private let header = HeaderView()
@@ -43,7 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        takeOverFromOlderCopies()
+        guard claimSingleInstance() else {
+            // Another copy already holds the menu bar. Leave without touching
+            // anything — no status item was created, so nothing flickers.
+            NSApp.terminate(nil)
+            return
+        }
         Interfaces.reload()
         if let t = InternetProbe.targets.first(where: { $0.title == settings.internetTarget }) {
             internet.setTarget(t)
@@ -73,31 +77,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Leaves exactly one copy running: the one that just launched.
+    /// Decides whether this launch should carry on, and clears the way if so.
     ///
-    /// Three of them had piled up here — a build, a copy started straight from
-    /// the disk image, and an installed one — each with its own status item, and
-    /// the menu bar quietly dropped the ones that no longer fit. The newcomer
-    /// wins rather than bowing out, because a menu bar app that exits on launch
-    /// looks like an app that failed to start: there is no window to bring
-    /// forward and nothing to explain itself with.
-    private func takeOverFromOlderCopies() {
-        guard let id = Bundle.main.bundleIdentifier else { return }
+    /// Three copies had piled up here — a build, one started straight from the
+    /// disk image, an installed one — each with its own status item, and once
+    /// the menu bar ran out of room it silently dropped them. The symptom was
+    /// not three icons but none, which reads as a crash.
+    ///
+    /// An older copy is superseded and shut down. A copy of the same version,
+    /// or a newer one, is left alone and this launch bows out instead: its
+    /// status item is already there, and replacing it would only make the icon
+    /// blink and throw away the history and session totals it has collected.
+    private func claimSingleInstance() -> Bool {
+        guard let id = Bundle.main.bundleIdentifier else { return true }
         let me = NSRunningApplication.current
+        let mine = Bundle.main.version
         let started = me.launchDate ?? Date()
-        let older = NSRunningApplication.runningApplications(withBundleIdentifier: id)
-            .filter { $0.processIdentifier != me.processIdentifier }
-            // Older ones only: two copies launched at the same moment must not
-            // shoot each other and leave none running.
-            .filter { ($0.launchDate ?? .distantPast) < started }
-        guard !older.isEmpty else { return }
 
-        older.forEach { $0.terminate() }
-        // A copy that ignores a polite quit still holds a status item, which is
-        // the whole problem being solved here.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            older.filter { !$0.isTerminated }.forEach { $0.forceTerminate() }
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .filter { $0.processIdentifier != me.processIdentifier }
+        var superseded: [NSRunningApplication] = []
+
+        for other in others {
+            let theirs = other.bundleURL.flatMap(Bundle.init(url:))?.version
+            switch theirs.map({ Version.compare($0, mine) }) ?? .orderedAscending {
+            case .orderedDescending:
+                return false                       // a newer copy is already running
+            case .orderedSame:
+                // Same version: the one that started first keeps the menu bar.
+                // Without this tie-break two copies launched together would each
+                // see the other and both step aside, leaving none.
+                if (other.launchDate ?? .distantPast) < started { return false }
+                superseded.append(other)
+            case .orderedAscending:
+                superseded.append(other)
+            }
         }
+
+        guard !superseded.isEmpty else { return true }
+        superseded.forEach { $0.terminate() }
+        // A copy ignoring a polite quit still holds a status item, which is the
+        // whole problem being solved here.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            superseded.filter { !$0.isTerminated }.forEach { $0.forceTerminate() }
+        }
+        return true
     }
 
     private func restartTimer() {
@@ -368,7 +392,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let root = aboutRoot
         root.image = symbol("info.circle")
         let sub = NSMenu()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let version = Bundle.main.version
         // Greyed out on purpose: a version is a caption, not something to click.
         let state: String
         if !settings.checkForUpdates {

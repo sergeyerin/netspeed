@@ -1,5 +1,30 @@
 import Foundation
 
+/// Compares versions like 1.10 and 1.9 as numbers rather than as text, where
+/// "1.10" would sort before "1.9".
+enum Version {
+    static func parts(_ version: String) -> [Int] {
+        version.split(separator: ".").map { Int($0.prefix(while: \.isNumber)) ?? 0 }
+    }
+
+    static func compare(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let (l, r) = (parts(lhs), parts(rhs))
+        for i in 0..<max(l.count, r.count) {
+            let a = i < l.count ? l[i] : 0
+            let b = i < r.count ? r[i] : 0
+            if a != b { return a > b ? .orderedDescending : .orderedAscending }
+        }
+        return .orderedSame
+    }
+}
+
+extension Bundle {
+    /// The version people see, as written in Info.plist.
+    var version: String {
+        (object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0"
+    }
+}
+
 /// Asks GitHub whether a newer release exists.
 ///
 /// The release is already the one place the disk image lives, so it is also the
@@ -20,7 +45,7 @@ final class UpdateChecker {
     private(set) var lastChecked: Date?
     private(set) var checking = false
 
-    private let current: [Int]
+    private let current: String
     private let endpoint = URL(string: "https://api.github.com/repos/sergeyerin/netspeed/releases/latest")!
     private let interval: TimeInterval = 24 * 60 * 60
 
@@ -32,7 +57,7 @@ final class UpdateChecker {
     }()
 
     init(currentVersion: String) {
-        current = UpdateChecker.parse(currentVersion)
+        current = currentVersion
     }
 
     var isDue: Bool {
@@ -54,7 +79,7 @@ final class UpdateChecker {
                 // network should not retract an update that does exist.
                 if let release {
                     self.lastChecked = Date()
-                    self.newer = Self.parse(release.version) > self.current ? release : nil
+                    self.newer = Version.compare(release.version, self.current) == .orderedDescending ? release : nil
                 }
                 completion()
             }
@@ -71,18 +96,4 @@ final class UpdateChecker {
         return Release(version: version, url: url)
     }
 
-    /// "1.10" is newer than "1.9", so the parts are compared as numbers rather
-    /// than as text.
-    private static func parse(_ version: String) -> [Int] {
-        version.split(separator: ".").map { Int($0.prefix(while: \.isNumber)) ?? 0 }
-    }
-}
-
-private func > (lhs: [Int], rhs: [Int]) -> Bool {
-    for i in 0..<max(lhs.count, rhs.count) {
-        let l = i < lhs.count ? lhs[i] : 0
-        let r = i < rhs.count ? rhs[i] : 0
-        if l != r { return l > r }
-    }
-    return false
 }
