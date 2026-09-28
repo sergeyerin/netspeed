@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var lastState: LinkState?
     private var networkID: String?
     private var lastSSID: Data?
+    private var wasOnline = true
 
     private let gatewayEvery: TimeInterval = 5
     private let internetEvery: TimeInterval = 10
@@ -62,9 +63,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Runs at launch and once a day after that. The checker keeps the interval
     /// itself, so calling this on a tick costs nothing until the day is up.
     private func checkForUpdates(force: Bool = false) {
-        guard settings.checkForUpdates else { return }
+        // An explicit ask works even with the daily check switched off.
+        guard force || settings.checkForUpdates else { return }
         updates.check(force: force) { [weak self] in
             self?.rebuildUpdateRow()
+            self?.rebuildAbout()
             self?.refreshMenu()
         }
     }
@@ -111,9 +114,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// would live on: a burst of failures during the switch kept the indicator
     /// red long after the new link was fine.
     private func noticeNetworkChange() {
-        guard let iface = monitor.trackedInterface else { return }
-        let id = [iface, Kernel.addresses(of: iface).v4.first ?? "-", currentGateway() ?? "-"]
+        guard let iface = monitor.trackedInterface else {
+            wasOnline = false
+            return
+        }
+        let addresses = Kernel.addresses(of: iface)
+        let id = [iface, addresses.v4.first ?? "-", currentGateway() ?? "-"]
             .joined(separator: "|")
+
+        // Losing a connection and getting the same one back looks identical to
+        // never having moved: same interface, same address, same gateway. So the
+        // link itself is watched too — otherwise the failures collected while it
+        // was down went on dragging the verdict for a minute after it returned,
+        // which is precisely when someone is staring at the menu asking whether
+        // they are back.
+        let online = !addresses.v4.isEmpty && !routes().isEmpty
+        let cameBack = online && !wasOnline
+        wasOnline = online
 
         // The SSID is tracked apart from the rest: it reads as empty now and
         // then, and a missing name must not count as "joined another network".
@@ -123,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lastSSID = ssid
         }
 
-        guard id != networkID || ssidChanged else { return }
+        guard id != networkID || ssidChanged || cameBack else { return }
         let firstRun = networkID == nil
         networkID = id
         guard !firstRun else { return }
@@ -336,11 +353,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         label.isEnabled = false
         sub.addItem(label)
 
-        let check = NSMenuItem(title: "Check for updates", action: #selector(checkNow), keyEquivalent: "")
-        check.target = self
-        check.state = settings.checkForUpdates ? .on : .off
-        check.toolTip = "Asks GitHub once a day whether a newer release exists."
-        sub.addItem(check)
+        let now = NSMenuItem(title: updates.checking ? "Checking…" : "Check now",
+                             action: #selector(checkNow), keyEquivalent: "")
+        now.target = self
+        now.isEnabled = !updates.checking
+        sub.addItem(now)
+
+        let daily = NSMenuItem(title: "Check daily", action: #selector(toggleUpdateChecks), keyEquivalent: "")
+        daily.target = self
+        daily.state = settings.checkForUpdates ? .on : .off
+        daily.toolTip = "Asks GitHub once a day whether a newer release exists."
+        sub.addItem(daily)
         sub.addItem(.separator())
         for (title, url) in [("Download page — netspeed.biplane.cc", "https://netspeed.biplane.cc/"),
                              ("Other projects — biplane.cc", "https://biplane.cc/"),
@@ -353,15 +376,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         root.submenu = sub
     }
 
-    /// The checkbox turns the daily check on and off; turning it on looks at
-    /// once rather than waiting for tomorrow.
     @objc private func checkNow() {
+        checkForUpdates(force: true)
+        rebuildAbout()
+    }
+
+    /// Turning the daily check back on looks at once rather than waiting a day.
+    @objc private func toggleUpdateChecks() {
         settings.checkForUpdates.toggle()
         if settings.checkForUpdates {
             checkForUpdates(force: true)
         } else {
             rebuildUpdateRow()
         }
+        rebuildAbout()
         refreshMenu()
     }
 
