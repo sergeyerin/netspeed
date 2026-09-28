@@ -2,19 +2,5 @@ build/
 dist/
 .DS_Store
 
-# Site machinery: publishing the download page at netspeed.biplane.cc, its
-# assets and the designer handoff. Kept on disk, out of the repository — a
-# public mirror of someone's server is nobody else's business, and the release
-# on GitHub is where the build actually lives.
-tools/RELEASING.md
-tools/nginx-netspeed.conf
-tools/publish.sh
-tools/render-page.py
-tools/page.html
-tools/page-assets/
-tools/design-brief.md
-tools/design-kit.sh
-tools/make-favicon.swift
-
 # Stray build output: a compiled binary that once landed here by accident.
 /main
