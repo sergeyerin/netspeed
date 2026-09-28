@@ -1,15 +1,13 @@
 # NetSpeed
 
+![NetSpeed — what your network is actually doing](preview/banner.png)
+
 A network speed indicator for the macOS menu bar. Native Swift, no dependencies:
 one 332 KB binary, ~25 MB of memory and under 1% of a single core at idle.
 
 The point is to see what the connection is doing without clicking anything —
 especially on a phone hotspot, where the link keeps swinging.
 
-<p align="center">
-  <img src="preview/tray-light.png#gh-light-mode-only" width="460" alt="The menu bar indicator in every state">
-  <img src="preview/tray-dark.png#gh-dark-mode-only" width="460" alt="The menu bar indicator in every state">
-</p>
 <p align="center">
   <img src="preview/menu-light.png#gh-light-mode-only" width="336" alt="The menu">
   <img src="preview/menu-dark.png#gh-dark-mode-only" width="336" alt="The menu">
@@ -288,3 +286,4 @@ exist.
 | `tools/design-brief.md`, `tools/design-kit.sh` | the designer handoff and the script that packs it |
 | `tools/nginx-netspeed.conf` | server config for netspeed.biplane.cc |
 | `tools/make-icon.swift` | draws the icon at every size and writes the .icns |
+| `tools/banner.html`, `tools/make-banner.sh` | the README and social-preview image |

@@ -1,0 +1,117 @@
+<!doctype html>
+<!--
+  Source of preview/banner.png — the image at the top of the README and the one
+  GitHub shows when the repository link is shared.
+
+  Rendered at 1280×640 by tools/make-banner.sh, which is GitHub's social preview
+  size. Everything sits well inside the edges: that card gets cropped to several
+  aspect ratios depending on where the link lands.
+
+  It borrows the page's design so the two read as one product — same ground,
+  same steel accent, same Barlow Condensed and corner marks.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Barlow'; font-weight: 400; font-display: block; src: url('Barlow-400.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow'; font-weight: 500; font-display: block; src: url('Barlow-500.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 600; font-display: block; src: url('BarlowCondensed-600.woff2') format('woff2'); }
+
+  :root {
+    --bg: #f2f2f3;
+    --text: #1d1f20;
+    --accent: #5980a6;
+    --divider: rgba(29, 31, 32, .16);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    width: 1280px;
+    height: 640px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .sheet {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    gap: 56px;
+    align-items: center;
+    padding: 0 76px;
+  }
+  .mark { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+  .mark img { width: 34px; height: 34px; display: block; }
+  .mark span {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 25px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 78px;
+    line-height: .96;
+    letter-spacing: -.005em;
+    margin: 0 0 26px;
+    text-transform: uppercase;
+  }
+  p {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.45;
+    max-width: 30ch;
+    color: #3c3f41;
+  }
+  .foot {
+    margin-top: 34px;
+    padding-top: 18px;
+    border-top: 1px solid var(--divider);
+    display: flex;
+    gap: 26px;
+    font-size: 16px;
+    letter-spacing: .04em;
+    color: #5c5f61;
+  }
+  .foot b { color: var(--accent); font-weight: 500; }
+
+  /* The same blueprint frame the page puts around its figures. */
+  .figure { position: relative; border: 1px solid var(--divider); padding: 18px; background: #e9e9ea; }
+  .figure img { width: 100%; height: auto; display: block; }
+  .corner { position: absolute; width: 11px; height: 11px; }
+  .corner::before, .corner::after { content: ''; position: absolute; background: var(--accent); }
+  .corner::before { left: 0; right: 0; top: 5px; height: 1px; }
+  .corner::after { top: 0; bottom: 0; left: 5px; width: 1px; }
+  .tl { top: -6px; left: -6px; } .tr { top: -6px; right: -6px; }
+  .bl { bottom: -6px; left: -6px; } .br { bottom: -6px; right: -6px; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div>
+      <div class="mark">
+        <img src="icon-256.png" alt="">
+        <span>NetSpeed</span>
+      </div>
+      <h1>What your network<br>is actually doing.</h1>
+      <p>Speed, latency and link quality in the macOS menu bar — and, on a phone
+      hotspot, what the phone says about its cellular signal.</p>
+      <div class="foot">
+        <span>Native Swift</span>
+        <span>No dependencies</span>
+        <span><b>netspeed.biplane.cc</b></span>
+      </div>
+    </div>
+    <div class="figure">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <img src="tray-light.png" alt="">
+    </div>
+  </div>
+</body>
+</html>
