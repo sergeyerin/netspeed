@@ -17,7 +17,7 @@ especially on a phone hotspot, where the link keeps swinging.
 
 A ready disk image lives at **[netspeed.biplane.cc](https://netspeed.biplane.cc/)**
 and on the [releases page](https://github.com/sergeyerin/netspeed/releases).
-macOS 13 or newer, Apple silicon. Other projects at [biplane.cc](https://biplane.cc/).
+macOS 13 or newer, on Apple silicon or Intel. Other projects at [biplane.cc](https://biplane.cc/).
 
 The app is signed ad-hoc rather than with a paid Apple developer certificate, so
 the first launch is refused. Either allow it once in **System Settings → Privacy

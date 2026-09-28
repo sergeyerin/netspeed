@@ -21,16 +21,29 @@ else
   echo "-- no Resources/AppIcon.icns, building without an icon" >&2
 fi
 
-echo "-- compiling"
-swiftc \
-  -O -whole-module-optimization \
-  -target "$(uname -m)-apple-macos13.0" \
-  -framework AppKit \
-  -framework CoreWLAN \
-  -framework SystemConfiguration \
-  -framework ServiceManagement \
-  -o "$MACOS_DIR/$APP_NAME" \
-  Sources/*.swift
+# Both architectures, so one download runs on any Mac that can run macOS 13:
+# Apple silicon natively, and Intel natively rather than through Rosetta.
+# swiftc builds one at a time, so each slice is compiled and then joined.
+ARCHS=(arm64 x86_64)
+SLICES=()
+for arch in "${ARCHS[@]}"; do
+  echo "-- compiling $arch"
+  slice="$BUILD_DIR/$APP_NAME-$arch"
+  swiftc \
+    -O -whole-module-optimization \
+    -target "$arch-apple-macos13.0" \
+    -framework AppKit \
+    -framework CoreWLAN \
+    -framework SystemConfiguration \
+    -framework ServiceManagement \
+    -o "$slice" \
+    Sources/*.swift
+  SLICES+=("$slice")
+done
+
+echo "-- joining into one binary"
+lipo -create -output "$MACOS_DIR/$APP_NAME" "${SLICES[@]}"
+rm -f "${SLICES[@]}"
 
 echo "-- signing (ad-hoc: gives the app a stable identity for login items)"
 codesign --force --sign - --identifier local.netspeed.NetSpeed "$APP" >/dev/null
