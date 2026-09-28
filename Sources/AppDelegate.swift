@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        takeOverFromOlderCopies()
         Interfaces.reload()
         if let t = InternetProbe.targets.first(where: { $0.title == settings.internetTarget }) {
             internet.setTarget(t)
@@ -69,6 +70,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.rebuildUpdateRow()
             self?.rebuildAbout()
             self?.refreshMenu()
+        }
+    }
+
+    /// Leaves exactly one copy running: the one that just launched.
+    ///
+    /// Three of them had piled up here — a build, a copy started straight from
+    /// the disk image, and an installed one — each with its own status item, and
+    /// the menu bar quietly dropped the ones that no longer fit. The newcomer
+    /// wins rather than bowing out, because a menu bar app that exits on launch
+    /// looks like an app that failed to start: there is no window to bring
+    /// forward and nothing to explain itself with.
+    private func takeOverFromOlderCopies() {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let me = NSRunningApplication.current
+        let started = me.launchDate ?? Date()
+        let older = NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .filter { $0.processIdentifier != me.processIdentifier }
+            // Older ones only: two copies launched at the same moment must not
+            // shoot each other and leave none running.
+            .filter { ($0.launchDate ?? .distantPast) < started }
+        guard !older.isEmpty else { return }
+
+        older.forEach { $0.terminate() }
+        // A copy that ignores a polite quit still holds a status item, which is
+        // the whole problem being solved here.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            older.filter { !$0.isTerminated }.forEach { $0.forceTerminate() }
         }
     }
 
