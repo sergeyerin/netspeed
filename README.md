@@ -2,8 +2,9 @@
 
 ![NetSpeed — what your network is actually doing](preview/banner.png)
 
-A network speed indicator for the macOS menu bar. Native Swift, no dependencies:
-one 332 KB binary, ~25 MB of memory and under 1% of a single core at idle.
+A network speed indicator for the macOS menu bar. Native Swift, no dependencies,
+no permission prompts: a 0.9 MB universal binary, around 25 MB of memory and
+well under 1% of a single core at idle.
 
 The point is to see what the connection is doing without clicking anything —
 especially on a phone hotspot, where the link keeps swinging.
@@ -35,12 +36,15 @@ xattr -dr com.apple.quarantine /Applications/NetSpeed.app
 tools/make-dmg.sh       # build and pack dist/NetSpeed-<version>.dmg
 ```
 
-Only the Command Line Tools (`swiftc`) are needed. The app is ad-hoc signed, has
-no Dock icon (`LSUIElement`) and no windows. Enable startup from the menu:
-**Settings → Launch at login**.
+Only the Command Line Tools (`swiftc`) are needed. The app has no Dock icon
+(`LSUIElement`) and no windows; enable startup from the menu, **Settings →
+Launch at login**.
 
 macOS asks for no permissions: the SSID comes from `ipconfig getsummary` rather
 than CoreWLAN, which would require Location access.
+
+Cutting a release and updating the download page is written down separately, in
+[tools/RELEASING.md](tools/RELEASING.md).
 
 ## In the menu bar
 
@@ -103,9 +107,14 @@ a table:
 - **addresses**: IPv4, gateway, IPv6, active VPN, and the address the outside
   world sees with the country it resolves to — `185.x.x.x (🇱🇹 LT)`.
 
-At the bottom: settings, "Copy summary" (all of the above as text, handy to send
-to support) and quit. When a newer release exists, a row appears above them
-saying so and opening the release page.
+Both axes of the chart are labelled — the value its tallest point stands for and
+how far back the left edge reaches — and hovering puts a cursor on it and reads
+out that moment: direction, value, how long ago.
+
+At the bottom: settings, "About NetSpeed" with the version and a "Check now" for
+updates, "Copy summary" (all of the above as text, handy to send to support) and
+quit. When a newer release exists, a row appears above them saying so and
+opening the release page.
 
 The data is drawn as custom views rather than assembled from menu items: macOS
 paints disabled menu items grey no matter what color is set on them, and grey on
@@ -197,6 +206,25 @@ address is looked up only while the menu is open and only if the previous answer
 is over five minutes old. Each has its own switch — **About NetSpeed → Check for
 updates** and **Settings → Show external IP**.
 
+## One copy at a time
+
+Every running copy adds its own status item, and once the menu bar runs out of
+room macOS silently drops the ones that no longer fit — so three copies show up
+as no icon at all, which reads as a crash. That is how three of them accumulated
+here: a build, one started straight from a disk image, and an installed one.
+
+Starting a copy while an older one runs replaces it. Starting one while an equal
+or newer copy runs leaves that one alone — it already holds two minutes of
+history and the session totals, and swapping it for an identical build would
+throw those away to put back what was there.
+
+Launching NetSpeed when it is already running does not start a second process at
+all: macOS sends the running copy a reopen event instead. That opens its menu,
+which is both an answer and a way to find the icon. If the click goes nowhere the
+icon did not fit in the menu bar, and a message says so and offers to quit —
+otherwise an app with no icon, no window and no Dock presence cannot be quit at
+all.
+
 ## Update checks
 
 The app asks `api.github.com` for the latest release at launch and once a day
@@ -209,79 +237,6 @@ It only reports. Downloading and replacing the app in place would need a
 developer certificate to be safe, and without one Gatekeeper would refuse the
 result anyway — so a newer version becomes a menu row pointing at the release
 page.
-
-## Publishing a release
-
-One-time setup on the server (the DNS record for the subdomain must already
-point at it):
-
-```bash
-# from the Mac
-scp tools/nginx-netspeed.conf user@host:/tmp/
-
-# on the server — SERVER_IP is this host's own address, see the config's header
-SERVER_IP=198.51.100.10
-sudo mkdir -p /var/www/netspeed && sudo chown "$USER" /var/www/netspeed
-# tee rather than a redirect: the redirect would run as you, not as root
-sed "s/SERVER_IP/$SERVER_IP/g" /tmp/nginx-netspeed.conf \
-    | sudo tee /etc/nginx/sites-available/netspeed > /dev/null
-sudo ln -s /etc/nginx/sites-available/netspeed /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-
-sudo certbot --nginx -d netspeed.biplane.cc
-# certbot writes a bare `listen 443 ssl;`, which cannot bind on this host —
-# see the comment at the top of nginx-netspeed.conf for why and the fix:
-sudo sed -i "s/^    listen 443 ssl;/    listen $SERVER_IP:443 ssl;/" \
-    /etc/nginx/sites-available/netspeed
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-Every release, in order — the page points at an exact release asset, so the
-release has to exist first:
-
-```bash
-# 1. bump CFBundleShortVersionString in Info.plist, then
-tools/make-dmg.sh
-
-# 2. publish the image — this is the only place it is hosted
-gh release create v1.1 dist/NetSpeed-1.1.dmg dist/NetSpeed-1.1.dmg.sha256 \
-    --title "NetSpeed 1.1" --notes "..."
-
-# 3. point the page at it (refuses to run if the asset is not there)
-NS_SSH=user@host tools/publish.sh            # NS_DRY_RUN=1 renders locally only
-```
-
-The image is hosted once, on GitHub Releases: free, on a CDN, with download
-counts, and impossible to have a second copy that says a different version.
-The site keeps the short address and the install instructions —
-`netspeed.biplane.cc/download` redirects to the newest release.
-
-## The download page
-
-The page at netspeed.biplane.cc is a single static file, generated from
-`tools/page.html` by `tools/render-page.py`. The markup is an ordinary HTML
-file: open it in a browser to work on it, or hand it to someone else to
-redesign. The brief at the top of it spells out the three constraints — one
-self-contained file with no external assets, light and dark, and the Gatekeeper
-instructions must survive, because without them the download is useless to most
-people who get it.
-
-The version, size, date, checksum and download link are substituted at publish
-time from the image actually being released, so the page cannot advertise a
-version that differs from the file. If a redesign drops one of those
-placeholders, publishing fails rather than putting up a page with no download
-link:
-
-```bash
-NS_DRY_RUN=1 tools/publish.sh    # renders dist/index.html with real values
-```
-
-To hand the page to someone else, `tools/design-kit.sh` assembles everything
-they need — the brief, the template, a rendered preview with the current
-release's values, screenshots and the icon — into `dist/netspeed-design-kit/`
-and a zip beside it. Nothing in the kit is maintained by hand: the preview and
-the icons are generated, so it cannot show a version or a mark that does not
-exist.
 
 ## Layout
 
@@ -297,15 +252,9 @@ exist.
 | `Sources/Indicator.swift` | link indicator: bars, label, colors for both themes |
 | `Sources/MenuViews.swift` | header and the details table |
 | `Sources/SparklineView.swift` | history chart |
+| `Sources/Updates.swift` | version comparison and the release check |
+| `Sources/AlreadyRunning.swift` | the window a redundant launch shows before leaving |
 | `Sources/Format.swift` | constant-width rate formatter and value formatting |
 | `Sources/Settings.swift` | preferences |
 | `Resources/AppIcon.icns` | app icon, generated by `tools/make-icon.swift` |
-| `tools/make-dmg.sh` | packs the app into a disk image |
-| `tools/page.html` | the download page markup, ready to be redesigned |
-| `tools/render-page.py` | fills the page with the facts of the release |
-| `tools/publish.sh` | renders the page and uploads it |
-| `tools/design-brief.md`, `tools/design-kit.sh` | the designer handoff and the script that packs it |
-| `tools/nginx-netspeed.conf` | server config for netspeed.biplane.cc |
-| `tools/make-icon.swift` | draws the app icon at every size and writes the .icns |
-| `tools/make-favicon.swift` | draws the site's favicons and packs the .ico |
-| `tools/banner.html`, `tools/make-banner.sh` | the README and social-preview image |
+| `tools/` | packaging the image, the download page and the icons — see [RELEASING.md](tools/RELEASING.md) |
