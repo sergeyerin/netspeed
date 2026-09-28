@@ -122,6 +122,41 @@ enum Interfaces {
     }
 }
 
+/// A short signature of the system's proxy settings.
+///
+/// Some VPN clients never create an interface of their own — they only flip the
+/// system proxy — so watching routes cannot see them come and go. The address
+/// the outside world sees changes all the same, and that is reported in the
+/// menu, so the proxy configuration counts as part of which network this is.
+enum Proxies {
+    private static let store = SCDynamicStoreCreate(nil, "NetSpeed.proxies" as CFString, nil, nil)
+
+    static func signature() -> String {
+        guard let store,
+              let root = SCDynamicStoreCopyValue(store, "State:/Network/Global/Proxies" as CFString)
+                  as? [String: Any] else { return "-" }
+
+        // Only the switches and ports: the rest of the dictionary is noise, and
+        // its key order is not stable enough to compare as a whole.
+        func collect(_ dict: [String: Any], prefix: String) -> [String] {
+            var parts = dict.keys.sorted()
+                .filter { $0.hasSuffix("Enable") || $0.hasSuffix("Port") }
+                .compactMap { key -> String? in
+                    (dict[key] as? Int).map { "\(prefix)\(key)=\($0)" }
+                }
+            if let scoped = dict["__SCOPED__"] as? [String: Any] {
+                for iface in scoped.keys.sorted() {
+                    if let inner = scoped[iface] as? [String: Any] {
+                        parts += collect(inner, prefix: "\(iface).")
+                    }
+                }
+            }
+            return parts
+        }
+        return collect(root, prefix: "").joined(separator: ",")
+    }
+}
+
 // MARK: - Wi-Fi details
 
 struct WiFiLink {

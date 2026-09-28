@@ -119,7 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         let addresses = Kernel.addresses(of: iface)
-        let id = [iface, addresses.v4.first ?? "-", currentGateway() ?? "-"]
+        // The tunnel and the proxy settings belong to the network's identity as
+        // much as the address does: switching a VPN off leaves the interface,
+        // the address and the gateway untouched while changing the path — and
+        // with it the external address and every latency figure.
+        let id = [iface, addresses.v4.first ?? "-", currentGateway() ?? "-",
+                  tunnel?.interface ?? "-", Proxies.signature()]
             .joined(separator: "|")
 
         // Losing a connection and getting the same one back looks identical to
