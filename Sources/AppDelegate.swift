@@ -611,6 +611,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lines.append(.kv(info.displayName, iface))
             if let w = WiFiReader.read(interface: iface) {
                 lines.append(.kv("Network", w.ssid ?? "name unavailable"))
+                // Two sections, one phone: without saying so, the Wi-Fi below
+                // reads as a second network that happens to be nearby, when it
+                // is the hop to the phone named above.
+                if let t = tether {
+                    lines.append(.note("   this Wi-Fi is the hop to \(t.name), not another network",
+                                       .neutral))
+                }
                 lines.append(.bars("Wi-Fi signal", w.quality.bars, 5, "\(w.rssi) dBm · SNR \(w.snr) dB"))
                 lines.append(.kv("Link rate", "\(Int(w.txRate)) Mbit/s"))
                 lines.append(.kv("Channel", "\(w.channel) · \(w.band) · \(w.width)"))
