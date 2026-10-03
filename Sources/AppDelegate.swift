@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var networkID: String?
     private var lastSSID: Data?
     private var wasOnline = true
+    private var offlineSince: Date?
+    private var lastRejoin = Date.distantPast
     private let alreadyRunning = AlreadyRunningWindow()
 
     private let gatewayEvery: TimeInterval = 5
@@ -67,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         buildMenu()
         rebuildAbout()
         rebuildUpdateRow()
+        rebuildRejoinRow()
         statusItem.menu = menu
 
         restartTimer()
@@ -401,6 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildSettings()
         rebuildAbout()
         rebuildUpdateRow()
+        rebuildRejoinRow()
         // Looking the address up costs an outside request, so it happens only
         // when the menu is actually opened — and only if the answer went stale.
         if settings.showExternalIP {
@@ -426,11 +430,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(updateRow)
         menu.addItem(settingsRoot)
         menu.addItem(aboutRoot)
+        menu.addItem(rejoinRow)
         menu.addItem(actionItem("Copy summary", symbol: "doc.on.doc", action: #selector(copySummary)))
         menu.addItem(actionItem("Quit", symbol: "power", action: #selector(quitApp), key: "q"))
     }
 
     private let settingsRoot = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+
+    /// Shown only when macOS still remembers a phone to ask.
+    private let rejoinRow = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+
+    private func rebuildRejoinRow() {
+        guard HotspotConnect.isSupported, let phone = HotspotConnect.knownPhone() else {
+            rejoinRow.isHidden = true
+            return
+        }
+        rejoinRow.isHidden = false
+        rejoinRow.title = "Ask \(phone.name) to share again"
+        rejoinRow.image = symbol("iphone.gen3.radiowaves.left.and.right")
+        rejoinRow.action = #selector(rejoinNow)
+        rejoinRow.target = self
+    }
+
+    @objc private func rejoinNow() {
+        lastRejoin = Date()
+        switch HotspotConnect.connect() {
+        case .asked, .unsupported, .noPhoneKnown:
+            break
+        case .failed(let reason):
+            let alert = NSAlert()
+            alert.messageText = "Could not reach the phone"
+            alert.informativeText = reason
+            alert.runModal()
+        }
+    }
 
     /// Sits in the main menu rather than inside About: an update nobody finds is
     /// the same as no update. Hidden entirely while there is nothing to say.

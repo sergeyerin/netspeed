@@ -32,6 +32,7 @@ final class Settings {
         static let indicator = "indicatorStyle"
         static let externalIP = "showExternalIP"
         static let updates = "checkForUpdates"
+        static let rejoin = "rejoinHotspot"
     }
 
     init() {
@@ -44,6 +45,7 @@ final class Settings {
             K.indicator: IndicatorStyle.bars.rawValue,
             K.externalIP: true,
             K.updates: true,
+            K.rejoin: false,
         ])
     }
 
@@ -89,6 +91,15 @@ final class Settings {
     var checkForUpdates: Bool {
         get { d.bool(forKey: K.updates) }
         set { d.set(newValue, forKey: K.updates) }
+    }
+
+    /// Whether to ask the tethering phone to switch its hotspot back on after
+    /// the connection has been gone for a while. Off by default: it reaches out
+    /// and changes which network the Mac is on, which nobody should discover by
+    /// surprise.
+    var rejoinHotspot: Bool {
+        get { d.bool(forKey: K.rejoin) }
+        set { d.set(newValue, forKey: K.rejoin) }
     }
 
     /// What to draw left of the numbers: bars, a short label, both or nothing.

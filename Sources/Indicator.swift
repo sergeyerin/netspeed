@@ -63,6 +63,16 @@ extension LinkVerdict {
         }
     }
 
+    /// Drawn instead of the bar scale, for states a scale cannot express.
+    /// Zero bars says "weak"; a crossed-out network says "none", which is a
+    /// different thing and the one people need to recognise instantly.
+    var glyph: String? {
+        switch self {
+        case .offline: return "network.slash"
+        case .good, .medium, .slow, .awful, .portal, .unknown: return nil
+        }
+    }
+
     /// How many of the four bars are filled.
     var level: Int {
         switch self {
@@ -118,21 +128,24 @@ extension LinkVerdict {
 struct LinkState: Equatable {
     var badge: String       // menu bar label, empty unless there is a fact to state
     var level: Int          // filled bars, 0...4
+    var glyph: String?      // drawn instead of the bars when a scale says nothing
     var tone: Tone
     var quality: String     // "Awful"
     var detail: String      // "EDGE-like" or "phone: 5G"; may be empty
 
-    init(badge: String, level: Int, tone: Tone, quality: String, detail: String) {
+    init(badge: String, level: Int, glyph: String? = nil, tone: Tone,
+         quality: String, detail: String) {
         self.badge = badge
         self.level = max(0, min(4, level))
+        self.glyph = glyph
         self.tone = tone
         self.quality = quality
         self.detail = detail
     }
 
     init(_ verdict: LinkVerdict) {
-        self.init(badge: verdict.marker, level: verdict.level, tone: verdict.tone,
-                  quality: verdict.quality, detail: verdict.comparison)
+        self.init(badge: verdict.marker, level: verdict.level, glyph: verdict.glyph,
+                  tone: verdict.tone, quality: verdict.quality, detail: verdict.comparison)
     }
 
     /// "Awful (phone: 5G)" — the verdict first, the qualifier in brackets.
@@ -194,7 +207,24 @@ enum Indicator {
             let color = state.tone.color
             var x: CGFloat = 0
 
-            if showBars {
+            if showBars, let glyph = state.glyph {
+                // A crossed-out network, centred in the space the bars would take.
+                let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+                if let symbol = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config) {
+                    let size = symbol.size
+                    let box = NSRect(x: x + (barsWidth - size.width) / 2,
+                                     y: (height - size.height) / 2,
+                                     width: size.width, height: size.height)
+                    color.set()
+                    symbol.isTemplate = true
+                    symbol.draw(in: box, from: .zero, operation: .sourceOver, fraction: 1)
+                    // A template image draws in the current fill colour only when
+                    // tinted explicitly; this does that without a second image.
+                    box.fill(using: .sourceAtop)
+                }
+                x += barsWidth + innerGap - barGap
+            } else if showBars {
                 let heights: [CGFloat] = [4, 6.5, 9, 11.5]
                 for i in 0..<barCount {
                     // Unfilled bars stay as a pale ghost of the same color, so the
@@ -209,7 +239,12 @@ enum Indicator {
 
             if showBadge {
                 let text = state.badge as NSString
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+                // The label takes the menu bar's own text colour rather than the
+                // state colour: a dark red word on a grey bar is barely there,
+                // and the bars already carry the colour. Legibility first.
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: font, .foregroundColor: NSColor.labelColor,
+                ]
                 let size = text.size(withAttributes: attrs)
                 text.draw(at: NSPoint(x: x, y: (height - size.height) / 2 + 0.5), withAttributes: attrs)
             }
