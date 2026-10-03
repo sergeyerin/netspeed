@@ -51,10 +51,10 @@ enum Flow {
 extension LinkVerdict {
     /// Only states that need words get them.
     ///
-    /// Quality is carried by the bars and the color alone: labelling a measured
-    /// estimate `LTE` or `E` made it look like a cellular technology the Mac had
-    /// read off the modem, which it is not. The real technology appears here
-    /// only when a tethering phone actually reports it.
+    /// Quality is carried by the colour alone: labelling a measured estimate
+    /// `LTE` or `E` made it look like a cellular technology the Mac had read off
+    /// the modem, which it is not. The real technology appears here only when a
+    /// tethering phone actually reports it.
     var marker: String {
         switch self {
         case .offline: return "OFF"
@@ -63,24 +63,13 @@ extension LinkVerdict {
         }
     }
 
-    /// Drawn instead of the bar scale, for states a scale cannot express.
-    /// Zero bars says "weak"; a crossed-out network says "none", which is a
-    /// different thing and the one people need to recognise instantly.
+    /// Replaces the transfer arrows where they would mislead: arrows mean data
+    /// moving, and with no connection nothing is moving at all. A crossed-out
+    /// network says that at a glance.
     var glyph: String? {
         switch self {
         case .offline: return "network.slash"
         case .good, .medium, .slow, .awful, .portal, .unknown: return nil
-        }
-    }
-
-    /// How many of the four bars are filled.
-    var level: Int {
-        switch self {
-        case .good: return 4
-        case .medium: return 3
-        case .slow: return 2
-        case .awful: return 1
-        case .offline, .portal, .unknown: return 0
         }
     }
 
@@ -127,16 +116,13 @@ extension LinkVerdict {
 /// technology the tethering phone reports — the drawing code does not care which.
 struct LinkState: Equatable {
     var badge: String       // menu bar label, empty unless there is a fact to state
-    var level: Int          // filled bars, 0...4
-    var glyph: String?      // drawn instead of the bars when a scale says nothing
+    var glyph: String?      // overrides the transfer arrows where they would mislead
     var tone: Tone
     var quality: String     // "Awful"
     var detail: String      // "EDGE-like" or "phone: 5G"; may be empty
 
-    init(badge: String, level: Int, glyph: String? = nil, tone: Tone,
-         quality: String, detail: String) {
+    init(badge: String, glyph: String? = nil, tone: Tone, quality: String, detail: String) {
         self.badge = badge
-        self.level = max(0, min(4, level))
         self.glyph = glyph
         self.tone = tone
         self.quality = quality
@@ -144,8 +130,8 @@ struct LinkState: Equatable {
     }
 
     init(_ verdict: LinkVerdict) {
-        self.init(badge: verdict.marker, level: verdict.level, glyph: verdict.glyph,
-                  tone: verdict.tone, quality: verdict.quality, detail: verdict.comparison)
+        self.init(badge: verdict.marker, glyph: verdict.glyph, tone: verdict.tone,
+                  quality: verdict.quality, detail: verdict.comparison)
     }
 
     /// "Awful (phone: 5G)" — the verdict first, the qualifier in brackets.
@@ -161,8 +147,8 @@ enum IndicatorStyle: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .bars: return "Signal bars"
-        case .barsAndBadge: return "Bars and network type"
+        case .bars: return "Transfer arrows"
+        case .barsAndBadge: return "Arrows and network type"
         case .none: return "No indicator"
         }
     }
@@ -170,12 +156,51 @@ enum IndicatorStyle: String, CaseIterable {
 
 enum Indicator {
     private static let font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
-    private static let barCount = 4
-    private static let barWidth: CGFloat = 2.5
-    private static let barGap: CGFloat = 1.5
-    private static let barsWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barGap
+    private static let glyphBox: CGFloat = 14
     private static let innerGap: CGFloat = 3.5
     private static let height: CGFloat = 16
+
+    /// Two arrows, down then up, because that is what this measures.
+    ///
+    /// It used to be a four-bar scale, which every phone and every Wi-Fi menu
+    /// uses for signal strength — so it read as "how strong is the signal" when
+    /// it has always meant "how well does the link actually carry". On a hotspot
+    /// the two can disagree completely: full bars to a phone that is getting
+    /// nothing from the tower. Arrows say transfer, and the colour says how well
+    /// it is going.
+    ///
+    /// Drawn rather than taken from SF Symbols: the pair there runs up-then-down,
+    /// while the figures beside it read down-then-up, and an icon disagreeing
+    /// with the numbers it labels is a small lie told constantly.
+    private static func drawTransferArrows(in box: NSRect, color: NSColor) {
+        let armWidth: CGFloat = 5
+        let gap: CGFloat = 2.5
+        let arrowHeight: CGFloat = 11
+        let headSpread: CGFloat = 2.6
+        let headDepth: CGFloat = 3.6
+
+        let left = box.midX - (armWidth * 2 + gap) / 2
+        let bottom = box.midY - arrowHeight / 2
+        let top = bottom + arrowHeight
+
+        color.setStroke()
+        for (index, pointingDown) in [true, false].enumerated() {
+            let centre = left + armWidth / 2 + CGFloat(index) * (armWidth + gap)
+            let tip = pointingDown ? bottom : top
+            let tail = pointingDown ? top : bottom
+
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: centre, y: tail))
+            path.line(to: NSPoint(x: centre, y: tip))
+            path.move(to: NSPoint(x: centre - headSpread, y: pointingDown ? tip + headDepth : tip - headDepth))
+            path.line(to: NSPoint(x: centre, y: tip))
+            path.line(to: NSPoint(x: centre + headSpread, y: pointingDown ? tip + headDepth : tip - headDepth))
+            path.lineWidth = 1.6
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.stroke()
+        }
+    }
 
     /// Widest label of everything that can be shown — the measured estimates and
     /// every cellular technology name. The box is reserved up front so the image
@@ -188,60 +213,49 @@ enum Indicator {
             .max() ?? 0
     }()
 
-    /// The picture is drawn by hand: a bar scale plus a label as one colored unit.
+    /// A glyph plus an optional label, as one coloured unit.
     ///
-    /// It is deliberately not a template image — the system would repaint that
-    /// monochrome and the color would lose its meaning. The contents are produced
-    /// inside a drawing block, so dynamic colors follow theme changes on their own.
+    /// Deliberately not a template image — the system would repaint that
+    /// monochrome and the colour, which is the whole state, would be lost. The
+    /// contents are produced inside a drawing block, so the dynamic colours
+    /// follow theme changes on their own.
     static func image(for state: LinkState, style: IndicatorStyle) -> NSImage? {
         guard style != .none else { return nil }
-        let showBars = true
         // An empty label reserves no room: with nothing to say, the indicator
-        // shrinks to the bars instead of leaving a gap where a word would be.
+        // shrinks to the glyph instead of leaving a gap where a word would be.
         let showBadge = style == .barsAndBadge && !state.badge.isEmpty
-        let width = (showBars ? barsWidth : 0)
-            + (showBars && showBadge ? innerGap : 0)
-            + (showBadge ? badgeBox : 0)
+        let width = glyphBox + (showBadge ? innerGap + badgeBox : 0)
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
             let color = state.tone.color
             var x: CGFloat = 0
 
-            if showBars, let glyph = state.glyph {
-                // A crossed-out network, centred in the space the bars would take.
+            let slot = NSRect(x: x, y: 0, width: glyphBox, height: height)
+            if let glyph = state.glyph {
                 let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
                 if let symbol = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)?
                     .withSymbolConfiguration(config) {
                     let size = symbol.size
-                    let box = NSRect(x: x + (barsWidth - size.width) / 2,
-                                     y: (height - size.height) / 2,
+                    let box = NSRect(x: slot.midX - size.width / 2,
+                                     y: slot.midY - size.height / 2,
                                      width: size.width, height: size.height)
                     color.set()
                     symbol.isTemplate = true
                     symbol.draw(in: box, from: .zero, operation: .sourceOver, fraction: 1)
-                    // A template image draws in the current fill colour only when
-                    // tinted explicitly; this does that without a second image.
+                    // A template image keeps its own greys unless the colour is
+                    // painted over it; this does that without a second image.
                     box.fill(using: .sourceAtop)
                 }
-                x += barsWidth + innerGap - barGap
-            } else if showBars {
-                let heights: [CGFloat] = [4, 6.5, 9, 11.5]
-                for i in 0..<barCount {
-                    // Unfilled bars stay as a pale ghost of the same color, so the
-                    // scale reads as "this many out of four".
-                    (i < state.level ? color : color.withAlphaComponent(0.22)).setFill()
-                    let r = NSRect(x: x, y: 2.5, width: barWidth, height: heights[i])
-                    NSBezierPath(roundedRect: r, xRadius: 1, yRadius: 1).fill()
-                    x += barWidth + barGap
-                }
-                x += innerGap - barGap
+            } else {
+                drawTransferArrows(in: slot, color: color)
             }
+            x += glyphBox + innerGap
 
             if showBadge {
                 let text = state.badge as NSString
                 // The label takes the menu bar's own text colour rather than the
                 // state colour: a dark red word on a grey bar is barely there,
-                // and the bars already carry the colour. Legibility first.
+                // and the glyph already carries the colour. Legibility first.
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: font, .foregroundColor: NSColor.labelColor,
                 ]

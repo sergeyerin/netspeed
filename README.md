@@ -56,33 +56,37 @@ there and the image, the release and the app's own update check all follow.
 
 ## In the menu bar
 
-On the left, the link indicator: four bars colored from green to red by how the
-connection actually behaves. On the right, two monospaced lines — download and
+On the left, the link indicator: a pair of transfer arrows coloured from green
+to red by how the connection actually behaves. On the right, two monospaced lines — download and
 upload.
 
-The bars carry the quality on their own, and that is deliberate. Labelling a
-measured estimate `LTE` or `E` made it look like a cellular technology read off
-a modem, which it was not — so those letters are gone. A label appears only when
+The colour carries the quality on its own, and the shape carries the subject.
+A four-bar scale came first and was wrong twice over: every phone and Wi-Fi menu
+uses that scale for signal strength, while this has always meant how well the
+link carries — and on a hotspot the two disagree completely, full bars to a
+phone getting nothing from the tower. Labelling a measured estimate `LTE` or `E`
+was wrong the same way, making it look like a technology read off a modem, so
+those letters are gone too. A label appears only when
 there is a fact to state: the technology a tethering phone reports about itself
-(`5G`, `LTE`, `EDGE`, …), shown with **Settings → Menu bar display → Bars and
+(`5G`, `LTE`, `EDGE`, …), shown with **Settings → Menu bar display → Arrows and
 network type**, which also marks `OFF` for a dead network and `WEB` for a
 captive portal.
 
-| Bars | Menu says |
+| Indicator | Menu says |
 |---|---|
-| 4, green | **Good** (LTE/5G-like) |
-| 3, amber | **Fair** (weak 4G-like) |
-| 2, orange | **Slow** (3G-like) |
-| 1, red | **Awful** (EDGE-like) |
-| 0, red | **Offline** |
-| 0, blue | **Sign-in needed** |
+| arrows, green | **Good** (LTE/5G-like) |
+| arrows, amber | **Fair** (weak 4G-like) |
+| arrows, orange | **Slow** (3G-like) |
+| arrows, red | **Awful** (EDGE-like) |
+| crossed-out network, red | **Offline** |
+| arrows, blue | **Sign-in needed** |
 
 The menu leads with the verdict and puts the qualifier in brackets. On a hotspot
 the brackets hold a fact instead of a comparison — `Awful (phone: 5G)` says the
 phone claims 5G while the link crawls, which is the whole point of showing both.
 
 Menu bar running out of room? **Settings → Menu bar display → Indicator only**
-drops the numbers and leaves just the bars — the item then takes about 20 points.
+drops the numbers and leaves just the arrows — the item then takes about 20 points.
 The same menu picks what the numbers show (download, combined, download with
 latency) and the unit: bytes or bits.
 
@@ -184,10 +188,11 @@ ordinary NSCoding, so a stand-in class decodes it without calling private API,
 and the numbers track the phone live.
 
 That gives the app what no measurement can: the technology the phone is actually
-on. It is the one label the menu bar will show, and the bars then count the
-phone's cellular reception instead of the measured estimate — while the **color
-still comes from the measured latency**. So `5G` painted orange reads exactly as
-it should: the phone claims 5G, the link behaves like weak 4G.
+on. It is the one label the menu bar will show, while the **colour still comes
+from the measured latency**. So `5G` painted orange reads exactly as it should:
+the phone claims 5G, the link behaves like weak 4G. The phone's own reception
+sits in the menu, next to its battery, where there is room to say whose signal
+it is.
 
 The technology codes come from the enum ControlCenter uses for the same purpose
 (`WiFiHotspotNetworkType`). Its cases are declared `other, _1x, GPRS, EDGE, _3G,
@@ -257,7 +262,7 @@ page.
 | `Sources/Hotspot.swift` | the tethering phone's cellular type, bars and battery |
 | `Sources/ExternalIP.swift` | the address the outside world sees, with its country |
 | `Sources/AppDelegate.swift` | status item and menu assembly |
-| `Sources/Indicator.swift` | link indicator: bars, label, colors for both themes |
+| `Sources/Indicator.swift` | link indicator: arrows, label, colors for both themes |
 | `Sources/MenuViews.swift` | header and the details table |
 | `Sources/SparklineView.swift` | history chart |
 | `Sources/Updates.swift` | version comparison and the release check |

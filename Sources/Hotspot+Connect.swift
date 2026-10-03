@@ -24,6 +24,14 @@ enum HotspotConnect {
     private typealias ConnectFunction = @convention(c)
         (AnyObject, Selector, AnyObject, Bool, UnsafeMutablePointer<NSError?>?) -> Bool
 
+    /// The getter, called the same way. Going through `perform` handed back an
+    /// `Unmanaged` reference that was then released a second time when the
+    /// autorelease pool drained — a segfault inside objc_release, one turn of
+    /// the event loop after the button was pressed. A typed call returns an
+    /// ordinary reference under the usual +0 convention and ARC keeps it
+    /// straight.
+    private typealias LastJoinedFunction = @convention(c) (AnyObject, Selector) -> AnyObject?
+
     private static var interface: CWInterface? { CWWiFiClient.shared().interface() }
 
     /// The phone this Mac last tethered to, if macOS still remembers it. Present
@@ -31,7 +39,10 @@ enum HotspotConnect {
     /// unattended reconnect possible at all.
     static func knownPhone() -> (device: AnyObject, name: String)? {
         guard let interface, interface.responds(to: lastJoinedSelector),
-              let device = interface.perform(lastJoinedSelector)?.takeUnretainedValue() else { return nil }
+              let method = class_getInstanceMethod(type(of: interface), lastJoinedSelector)
+        else { return nil }
+        let call = unsafeBitCast(method_getImplementation(method), to: LastJoinedFunction.self)
+        guard let device = call(interface, lastJoinedSelector) else { return nil }
         let name = (device.value(forKey: "_deviceName") as? String) ?? "hotspot"
         return (device, name)
     }

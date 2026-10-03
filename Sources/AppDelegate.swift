@@ -318,7 +318,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let v = verdict
         guard let tether, tether.networkType != .other else { return LinkState(v) }
         return LinkState(badge: tether.networkType.label,
-                         level: tether.signalBars,
                          tone: v.tone,
                          quality: v.quality,
                          detail: "phone: \(tether.networkType.label)")
