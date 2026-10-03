@@ -120,18 +120,45 @@ struct LinkState: Equatable {
     var tone: Tone
     var quality: String     // "Awful"
     var detail: String      // "EDGE-like" or "phone: 5G"; may be empty
+    var downChevrons: Int   // 1...3, by how much is moving that way
+    var upChevrons: Int
 
-    init(badge: String, glyph: String? = nil, tone: Tone, quality: String, detail: String) {
+    init(badge: String, glyph: String? = nil, tone: Tone, quality: String, detail: String,
+         downChevrons: Int = 1, upChevrons: Int = 1) {
         self.badge = badge
         self.glyph = glyph
         self.tone = tone
         self.quality = quality
         self.detail = detail
+        self.downChevrons = downChevrons
+        self.upChevrons = upChevrons
     }
 
     init(_ verdict: LinkVerdict) {
         self.init(badge: verdict.marker, glyph: verdict.glyph, tone: verdict.tone,
                   quality: verdict.quality, detail: verdict.comparison)
+    }
+
+    /// How much is moving, in three bands. The colour answers a different
+    /// question — how well the link carries — and the two are deliberately kept
+    /// apart: a busy stack in amber means plenty of data crossing a mediocre
+    /// link, which is a real and common state, not a contradiction.
+    ///
+    /// What stops the two scales from being confused for one is that the
+    /// directions move independently. A strength meter cannot read three down
+    /// and one up; traffic does it constantly, and that asymmetry is what tells
+    /// the eye this is flow and not level.
+    ///
+    /// The steps sit low on purpose. The first attempt put them at 64 KB/s and
+    /// 1 MB/s, above everything ordinary use produces: measured over twenty
+    /// seconds of a normal session the median was 1 KB/s and the peak 16 KB/s,
+    /// so the count never moved at all. A scale nobody climbs is decoration.
+    static func chevrons(forBytesPerSecond rate: Double) -> Int {
+        switch rate {
+        case ..<8_000: return 1           // idle, or background chatter
+        case ..<256_000: return 2         // something is going on
+        default: return 3                 // moving properly
+        }
     }
 
     /// "Awful (phone: 5G)" — the verdict first, the qualifier in brackets.
@@ -160,7 +187,7 @@ enum Indicator {
     private static let innerGap: CGFloat = 3.5
     private static let height: CGFloat = 16
 
-    /// Two arrows, down then up, because that is what this measures.
+    /// Two chevron arrows, down then up, because that is what this measures.
     ///
     /// It used to be a four-bar scale, which every phone and every Wi-Fi menu
     /// uses for signal strength — so it read as "how strong is the signal" when
@@ -169,36 +196,55 @@ enum Indicator {
     /// nothing from the tower. Arrows say transfer, and the colour says how well
     /// it is going.
     ///
+    /// Chevrons rather than plain arrows, borrowed from road markings where a
+    /// stack means speed and direction at a glance. Each direction carries its
+    /// own count, set by what is actually crossing; the colour, shared by both,
+    /// carries how well the link is doing. The counts repeat what the figures
+    /// beside them already say — on purpose. That repetition teaches the scale
+    /// without a legend, and it is the only reading left when the numbers are
+    /// switched off and the arrows stand alone.
+    ///
     /// Drawn rather than taken from SF Symbols: the pair there runs up-then-down,
     /// while the figures beside it read down-then-up, and an icon disagreeing
     /// with the numbers it labels is a small lie told constantly.
-    private static func drawTransferArrows(in box: NSRect, color: NSColor) {
-        let armWidth: CGFloat = 5
-        let gap: CGFloat = 2.5
-        let arrowHeight: CGFloat = 11
-        let headSpread: CGFloat = 2.6
-        let headDepth: CGFloat = 3.6
+    private static func drawTransferArrows(in box: NSRect, color: NSColor,
+                                           downChevrons: Int, upChevrons: Int) {
+        let armWidth: CGFloat = 5.4
+        let gap: CGFloat = 2.6
+        let spread: CGFloat = 2.7          // half-width of a chevron
+        let depth: CGFloat = 3.1           // how far its arms fall back from the point
+        let step: CGFloat = 4.3            // distance between chevrons
 
         let left = box.midX - (armWidth * 2 + gap) / 2
-        let bottom = box.midY - arrowHeight / 2
-        let top = bottom + arrowHeight
-
         color.setStroke()
+
         for (index, pointingDown) in [true, false].enumerated() {
             let centre = left + armWidth / 2 + CGFloat(index) * (armWidth + gap)
-            let tip = pointingDown ? bottom : top
-            let tail = pointingDown ? top : bottom
+            let count = pointingDown ? downChevrons : upChevrons
+            // Each direction is centred on its own stack, so one side growing
+            // does not shove the other off its line.
+            let extent = depth + CGFloat(count - 1) * step
+            let tip = pointingDown ? box.midY - extent / 2 : box.midY + extent / 2
 
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: centre, y: tail))
-            path.line(to: NSPoint(x: centre, y: tip))
-            path.move(to: NSPoint(x: centre - headSpread, y: pointingDown ? tip + headDepth : tip - headDepth))
-            path.line(to: NSPoint(x: centre, y: tip))
-            path.line(to: NSPoint(x: centre + headSpread, y: pointingDown ? tip + headDepth : tip - headDepth))
-            path.lineWidth = 1.6
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.stroke()
+            for chevron in 0..<count {
+                let offset = CGFloat(chevron) * step
+                let point = pointingDown ? tip + offset : tip - offset
+                let back = pointingDown ? point + depth : point - depth
+
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: centre - spread, y: back))
+                path.line(to: NSPoint(x: centre, y: point))
+                path.line(to: NSPoint(x: centre + spread, y: back))
+                path.lineWidth = 1.7
+                path.lineCapStyle = .round
+                path.lineJoinStyle = .round
+                // A slight fade along the stack keeps it reading as motion
+                // rather than as a bracket. Gentle on purpose: too steep and a
+                // three-chevron stack looks like it is trailing off, when a
+                // full stack is exactly the good news here.
+                color.withAlphaComponent(chevron == 0 ? 1 : (chevron == 1 ? 0.82 : 0.66)).setStroke()
+                path.stroke()
+            }
         }
     }
 
@@ -247,7 +293,9 @@ enum Indicator {
                     box.fill(using: .sourceAtop)
                 }
             } else {
-                drawTransferArrows(in: slot, color: color)
+                drawTransferArrows(in: slot, color: color,
+                                   downChevrons: state.downChevrons,
+                                   upChevrons: state.upChevrons)
             }
             x += glyphBox + innerGap
 

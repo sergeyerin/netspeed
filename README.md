@@ -56,15 +56,26 @@ there and the image, the release and the app's own update check all follow.
 
 ## In the menu bar
 
-On the left, the link indicator: a pair of transfer arrows coloured from green
-to red by how the connection actually behaves. On the right, two monospaced lines — download and
-upload.
+On the left, the link indicator: a pair of chevron arrows, down and up. On the
+right, two monospaced lines — download and upload.
 
-The colour carries the quality on its own, and the shape carries the subject.
-A four-bar scale came first and was wrong twice over: every phone and Wi-Fi menu
-uses that scale for signal strength, while this has always meant how well the
-link carries — and on a hotspot the two disagree completely, full bars to a
-phone getting nothing from the tower. Labelling a measured estimate `LTE` or `E`
+The arrows answer two questions at once, and it is worth knowing which is
+which. **How deep the stack is** — one to three chevrons, set separately for
+each direction — is how much is crossing right now. **What colour it is** is how
+well the link carries. They are independent, so three amber chevrons are not a
+contradiction: plenty of data moving over a mediocre connection is an ordinary
+state, and so is a single green one with nothing to send.
+
+Nothing tells the two scales apart better than watching them disagree. A
+strength meter cannot read three down and one up; traffic does it all the time.
+The counts also repeat what the figures beside them already say, which is how
+the scale gets learned without a legend — and the only reading left when the
+numbers are switched off and the arrows stand alone.
+
+The shape went through a correction. A four-bar scale came first: every
+phone and Wi-Fi menu uses that one for signal strength, while this has always
+meant how well the link carries — and on a hotspot the two disagree completely,
+full bars to a phone getting nothing from the tower. Labelling a measured estimate `LTE` or `E`
 was wrong the same way, making it look like a technology read off a modem, so
 those letters are gone too. A label appears only when
 there is a fact to state: the technology a tethering phone reports about itself
@@ -72,14 +83,23 @@ there is a fact to state: the technology a tethering phone reports about itself
 network type**, which also marks `OFF` for a dead network and `WEB` for a
 captive portal.
 
-| Indicator | Menu says |
+| Colour | Menu says |
 |---|---|
-| arrows, green | **Good** (LTE/5G-like) |
-| arrows, amber | **Fair** (weak 4G-like) |
-| arrows, orange | **Slow** (3G-like) |
-| arrows, red | **Awful** (EDGE-like) |
+| green | **Good** (LTE/5G-like) |
+| amber | **Fair** (weak 4G-like) |
+| orange | **Slow** (3G-like) |
+| red | **Awful** (EDGE-like) |
 | crossed-out network, red | **Offline** |
-| arrows, blue | **Sign-in needed** |
+| blue | **Sign-in needed** |
+
+| Chevrons | That direction is carrying |
+|---|---|
+| one | under 8 KB/s — idle, or background chatter |
+| two | 8 KB/s to 256 KB/s |
+| three | over 256 KB/s |
+
+The bands are read from a three-second peak, so a short burst stays visible long
+enough to be seen instead of flickering past in one sample.
 
 The menu leads with the verdict and puts the qualifier in brackets. On a hotspot
 the brackets hold a fact instead of a comparison — `Awful (phone: 5G)` says the

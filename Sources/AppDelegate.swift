@@ -316,11 +316,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// side, so "5G" in orange reads as "says 5G, behaves like weak 4G".
     private var linkState: LinkState {
         let v = verdict
-        guard let tether, tether.networkType != .other else { return LinkState(v) }
+        // A three-second peak rather than this instant: a burst should stay
+        // visible long enough to be seen, and a count flickering with every
+        // sample would be noise rather than information.
+        let peak = monitor.recentPeak(seconds: 3, interval: settings.interval)
+        let down = LinkState.chevrons(forBytesPerSecond: peak.down)
+        let up = LinkState.chevrons(forBytesPerSecond: peak.up)
+        guard let tether, tether.networkType != .other else {
+            var state = LinkState(v)
+            state.downChevrons = down
+            state.upChevrons = up
+            return state
+        }
         return LinkState(badge: tether.networkType.label,
                          tone: v.tone,
                          quality: v.quality,
-                         detail: "phone: \(tether.networkType.label)")
+                         detail: "phone: \(tether.networkType.label)",
+                         downChevrons: down,
+                         upChevrons: up)
     }
 
     private var tunnel: DefaultRoute? {
@@ -345,7 +358,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .downOnly:
             lines = ["↓ " + down]
         case .sum:
-            lines = ["⇅ " + titleDown.format(s.total, unit: unit)]
+            // No arrow of its own: the indicator beside it is already a pair of
+            // them, and two sets side by side read as two different things.
+            lines = [titleDown.format(s.total, unit: unit)]
         case .withPing:
             lines = ["↓ " + down, "↑ " + up + "  " + paddedPing()]
         case .hidden:
