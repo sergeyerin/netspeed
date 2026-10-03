@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var wasOnline = true
     private var offlineSince: Date?
     private var lastRejoin = Date.distantPast
-    private let alreadyRunning = AlreadyRunningWindow()
+    private let message = MessageWindow()
 
     private let gatewayEvery: TimeInterval = 5
     private let internetEvery: TimeInterval = 10
@@ -93,14 +93,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
             guard let self, (self.menuOpenedAt ?? .distantPast) < asked else { return }
             // The click went nowhere: the icon did not fit in the menu bar.
-            self.alreadyRunning.show(
+            self.message.show(
                 title: "NetSpeed is already running",
                 message: "Its icon did not fit in the menu bar, so there is no way to "
                     + "reach it there. Free up room by quitting another menu bar app, or "
                     + "switch to Settings → Menu bar display → Indicator only, which takes "
                     + "a fifth of the space. You can also quit NetSpeed here.",
-                onQuit: { NSApp.terminate(nil) },
-                onClose: {})
+                action: ("Quit NetSpeed", { NSApp.terminate(nil) }))
         }
         return true
     }
@@ -173,21 +172,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func reportAlreadyRunning(version: String?, running: [NSRunningApplication]) {
         let mine = Bundle.main.version
-        var message = "Look for the signal bars in the menu bar at the top of the screen. "
+        var text = "Look for the signal bars in the menu bar at the top of the screen. "
         if let version, Version.compare(version, mine) == .orderedDescending {
-            message = "Version \(version) is already running and this copy is \(mine), "
-                + "so the newer one was left in place. " + message
+            text = "Version \(version) is already running and this copy is \(mine), "
+                + "so the newer one was left in place. " + text
         }
         // Whether the icon is actually on screen cannot be checked from here —
         // a status item appears in no window list. So the way out is offered
         // rather than diagnosed.
-        message += "If it is not there, the menu bar is full and the icon did not fit; "
+        text += "If it is not there, the menu bar is full and the icon did not fit; "
             + "quitting is then the only way to reach it."
 
-        alreadyRunning.show(
+        self.message.show(
             title: "NetSpeed is already running",
-            message: message,
-            onQuit: { running.forEach { $0.terminate() } },
+            message: text,
+            action: ("Quit NetSpeed", { running.forEach { $0.terminate() } }),
             onClose: { NSApp.terminate(nil) })
     }
 
@@ -531,9 +530,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         root.submenu = sub
     }
 
+    /// Clicking a menu item closes the menu, and the answer arrives a moment
+    /// later — so the result had to be hunted for by opening the menu again.
+    /// An explicit ask gets an explicit answer.
     @objc private func checkNow() {
-        checkForUpdates(force: true)
+        let asked = Date()
         rebuildAbout()
+        updates.check(force: true) { [weak self] in
+            guard let self else { return }
+            self.rebuildUpdateRow()
+            self.rebuildAbout()
+            self.refreshMenu()
+
+            if let release = self.updates.newer {
+                self.message.show(
+                    title: "NetSpeed \(release.version) is available",
+                    message: "This copy is \(Bundle.main.version).",
+                    action: ("Open release page", { NSWorkspace.shared.open(release.url) }))
+            } else if (self.updates.lastChecked ?? .distantPast) >= asked {
+                self.message.show(
+                    title: "NetSpeed is up to date",
+                    message: "Version \(Bundle.main.version) is the latest release.")
+            } else {
+                // lastChecked only moves on a successful answer, so an unchanged
+                // one means GitHub was not reached — worth saying, since the app
+                // is about connections that come and go.
+                self.message.show(
+                    title: "Could not check for updates",
+                    message: "GitHub did not answer. The connection may be down, "
+                        + "or the check may have been rate-limited.")
+            }
+        }
     }
 
     /// Turning the daily check back on looks at once rather than waiting a day.
