@@ -39,7 +39,11 @@ final class Settings {
         d.register(defaults: [
             K.interval: 1.0,
             K.unit: RateUnit.bytes.rawValue,
-            K.titleMode: TitleMode.both.rawValue,
+            // One line by default. Two lines of figures in a 9-point face is a
+            // lot to put in front of someone who has not asked for it; the
+            // combined rate answers "is anything happening" on its own, and the
+            // split is one menu click away for whoever wants it.
+            K.titleMode: TitleMode.sum.rawValue,
             K.latency: true,
             K.target: "Cloudflare",
             K.indicator: IndicatorStyle.bars.rawValue,
@@ -66,7 +70,7 @@ final class Settings {
     }
 
     var titleMode: TitleMode {
-        get { TitleMode(rawValue: d.string(forKey: K.titleMode) ?? "") ?? .both }
+        get { TitleMode(rawValue: d.string(forKey: K.titleMode) ?? "") ?? .sum }
         set { d.set(newValue.rawValue, forKey: K.titleMode) }
     }
 

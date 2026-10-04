@@ -354,7 +354,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var lines: [String]
         switch settings.titleMode {
         case .both:
-            lines = ["↓ " + down, "↑ " + up]
+            // Upload on top, download underneath, so each line sits where its
+            // own arrow points. Reading order argued for download first; the
+            // spatial sense is stronger and does not have to be learned.
+            lines = ["↑ " + up, "↓ " + down]
         case .downOnly:
             lines = ["↓ " + down]
         case .sum:
@@ -362,7 +365,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // them, and two sets side by side read as two different things.
             lines = [titleDown.format(s.total, unit: unit)]
         case .withPing:
-            lines = ["↓ " + down, "↑ " + up + "  " + paddedPing()]
+            // Rates first and latency trailing the lower line. Put in front it
+            // sat alone against the indicator with nothing beneath it; put on
+            // its own it is a third thing competing with the pair. Here it
+            // reads as a footnote to them, which is what it is.
+            lines = ["↑ " + up, "↓ " + down + "  " + paddedPing()]
         case .hidden:
             lines = []
         }
@@ -378,7 +385,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         lastTitle = text
 
         let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .right
+        // Two lines align left, one aligns right. Flush right looks the same
+        // while the lines are equal length, which the rates are, but the moment
+        // one carries latency as well the shorter line slides across and the
+        // two rates stop sharing a column. Trailing spaces cannot hold it:
+        // alignment ignores them. A left edge is simply fixed.
+        paragraph.alignment = oneLine ? .right : .left
         if !oneLine {
             paragraph.maximumLineHeight = 10
             paragraph.minimumLineHeight = 10

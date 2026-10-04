@@ -223,9 +223,8 @@ enum Indicator {
     /// ladder or the whole of it. A fixed scale answers both, and stops the
     /// glyph twitching in the menu bar every time traffic changes band.
     ///
-    /// Drawn rather than taken from SF Symbols: the pair there runs up-then-down,
-    /// while the figures beside it read down-then-up, and an icon disagreeing
-    /// with the numbers it labels is a small lie told constantly.
+    /// Drawn rather than taken from SF Symbols for a plain reason: no symbol is
+    /// a five-step scale, and the lit part is the whole point of this one.
     private static func drawTransferArrows(in box: NSRect, color: NSColor,
                                            downChevrons: Int, upChevrons: Int) {
         let armWidth: CGFloat = 5.4
