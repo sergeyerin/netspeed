@@ -310,14 +310,27 @@ enum LinkVerdict: Equatable {
     /// How many recent samples the verdict is based on — one minute of probing.
     static let window = 6
 
+    /// Download that actually arrived over the last minute, above which the link
+    /// is carrying something rather than just chattering.
+    ///
+    /// Bytes cannot cross a link that is down, which is what makes this the
+    /// right thing to check before calling one offline. Judged on lost probes
+    /// alone, a hotspot that answered none of them was reported as Offline
+    /// while fifty kilobytes a second were visibly arriving and the menu showed
+    /// the figures to prove it. Losing every probe on a link that is still
+    /// moving data is not a dead link; it is an awful one, and there is a
+    /// verdict for that.
+    private static let carrying: Double = 8_000
+
     static func evaluate(internet: InternetProbe, peakDown: Double, online: Bool) -> LinkVerdict {
         guard online else { return .offline }
         if internet.captivePortal { return .portal }
         let s = internet.series
         guard !s.isEmpty else { return .unknown }
+        let moving = peakDown >= carrying
         let loss = s.lossPercent(last: window)
-        if loss >= 60 { return .offline }
-        guard let rtt = s.average(last: window) else { return .offline }
+        if loss >= 60 { return moving ? .awful : .offline }
+        guard let rtt = s.average(last: window) else { return moving ? .awful : .offline }
         let ms = rtt * 1000
         if ms > 900 || loss >= 40 { return .awful }
         if ms > 400 || loss >= 20 { return .slow }

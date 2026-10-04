@@ -329,6 +329,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return state
         }
         return LinkState(badge: tether.networkType.label,
+                         // The verdict's own glyph has to come along: it is what
+                         // replaces the arrows when there is no network to move
+                         // anything over. Built without it, the icon went on
+                         // drawing transfer arrows while the menu right under it
+                         // said Offline.
+                         glyph: v.glyph,
                          tone: v.tone,
                          quality: v.quality,
                          detail: "phone: \(tether.networkType.label)",
