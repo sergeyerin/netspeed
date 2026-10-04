@@ -56,18 +56,23 @@ there and the image, the release and the app's own update check all follow.
 
 ## In the menu bar
 
-On the left, the link indicator: a pair of chevron arrows, down and up. On the
+On the left, the link indicator: a pair of chevron scales, down and up. On the
 right, two monospaced lines — download and upload.
 
 The arrows answer two questions at once, and it is worth knowing which is
-which. **How deep the stack is** — one to three chevrons, set separately for
-each direction — is how much is crossing right now. **What colour it is** is how
-well the link carries. They are independent, so three amber chevrons are not a
-contradiction: plenty of data moving over a mediocre connection is an ordinary
-state, and so is a single green one with nothing to send.
+which. **How far the lit part reaches** — five divisions per direction, each
+direction on its own — is how much is crossing right now. **What colour it is**
+is how well the link carries. They are independent, so a full amber stack is not
+a contradiction: plenty of data moving over a mediocre connection is an ordinary
+state, and so is a single green mark with nothing to send.
+
+All five divisions are always drawn and the unreached ones are dimmed, the way
+the scale on a tape deck stays visible while only the level lights up. A stack
+that grew and shrank never showed how much room was left above it, and one mark
+alone could not say whether it was the bottom of a ladder or the whole of it.
 
 Nothing tells the two scales apart better than watching them disagree. A
-strength meter cannot read three down and one up; traffic does it all the time.
+strength meter cannot read five down and one up; traffic does it all the time.
 The counts also repeat what the figures beside them already say, which is how
 the scale gets learned without a legend — and the only reading left when the
 numbers are switched off and the arrows stand alone.
@@ -92,14 +97,19 @@ captive portal.
 | crossed-out network, red | **Offline** |
 | blue | **Sign-in needed** |
 
-| Chevrons | That direction is carrying |
+| Lit divisions | That direction is carrying |
 |---|---|
-| one | under 8 KB/s — idle, or background chatter |
-| two | 8 KB/s to 256 KB/s |
-| three | over 256 KB/s |
+| one | under 4 KB/s — idle, or background chatter |
+| two | 4 KB/s to 32 KB/s |
+| three | 32 KB/s to 256 KB/s |
+| four | 256 KB/s to 2 MB/s |
+| five | over 2 MB/s |
 
-The bands are read from a three-second peak, so a short burst stays visible long
-enough to be seen instead of flickering past in one sample.
+Five steps of eight times each, because that is the range this meets in
+practice: a phone on EDGE tops out around the second division, a hotspot on LTE
+lives in the middle, wired gigabit reaches the fifth. The bands are read from a
+three-second peak, so a short burst stays visible long enough to be seen instead
+of flickering past in one sample.
 
 The menu leads with the verdict and puts the qualifier in brackets. On a hotspot
 the brackets hold a fact instead of a comparison — `Awful (phone: 5G)` says the

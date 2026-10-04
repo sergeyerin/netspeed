@@ -139,25 +139,33 @@ struct LinkState: Equatable {
                   quality: verdict.quality, detail: verdict.comparison)
     }
 
-    /// How much is moving, in three bands. The colour answers a different
-    /// question — how well the link carries — and the two are deliberately kept
-    /// apart: a busy stack in amber means plenty of data crossing a mediocre
-    /// link, which is a real and common state, not a contradiction.
+    /// How much is moving, as a position on a fixed scale. The colour answers a
+    /// different question — how well the link carries — and the two are
+    /// deliberately kept apart: a full stack in amber means plenty of data
+    /// crossing a mediocre link, which is a real and common state, not a
+    /// contradiction.
     ///
     /// What stops the two scales from being confused for one is that the
-    /// directions move independently. A strength meter cannot read three down
+    /// directions move independently. A strength meter cannot read five down
     /// and one up; traffic does it constantly, and that asymmetry is what tells
     /// the eye this is flow and not level.
     ///
-    /// The steps sit low on purpose. The first attempt put them at 64 KB/s and
-    /// 1 MB/s, above everything ordinary use produces: measured over twenty
-    /// seconds of a normal session the median was 1 KB/s and the peak 16 KB/s,
-    /// so the count never moved at all. A scale nobody climbs is decoration.
+    /// Five steps of eight times each, which is what it takes to span the range
+    /// this app actually meets: a phone on EDGE tops out around the second,
+    /// a hotspot on LTE lives in the middle, wired gigabit reaches the fifth.
+    /// Three steps could not do that — picking a top of 256 KB/s pinned every
+    /// fast link to the ceiling, and picking a higher one left mobile users
+    /// permanently at the floor.
+    ///
+    /// The bottom step sits at 4 KB/s because nothing below it is a decision:
+    /// a Mac with every window shut still exchanges a kilobyte or two a second.
     static func chevrons(forBytesPerSecond rate: Double) -> Int {
         switch rate {
-        case ..<8_000: return 1           // idle, or background chatter
-        case ..<256_000: return 2         // something is going on
-        default: return 3                 // moving properly
+        case ..<4_000: return 1           // idle, or background chatter
+        case ..<32_000: return 2
+        case ..<256_000: return 3
+        case ..<2_000_000: return 4
+        default: return 5                 // flat out, for most links
         }
     }
 
@@ -186,6 +194,10 @@ enum Indicator {
     private static let glyphBox: CGFloat = 14
     private static let innerGap: CGFloat = 3.5
     private static let height: CGFloat = 16
+    /// Five divisions, flatter and closer than three were. A fixed scale is
+    /// read by how far the lit part reaches, not by counting segments, so the
+    /// marks can be finer than they could when the stack grew and shrank.
+    static let chevronsPerDirection = 5
 
     /// Two chevron arrows, down then up, because that is what this measures.
     ///
@@ -204,6 +216,13 @@ enum Indicator {
     /// without a legend, and it is the only reading left when the numbers are
     /// switched off and the arrows stand alone.
     ///
+    /// All five are always drawn, the unreached ones dimmed, the way the scale
+    /// on a tape deck stays visible while only the level lights up. A stack
+    /// that grew and shrank gave no sense of how much room was left above, and
+    /// one chevron on its own could not say whether it was the bottom of a
+    /// ladder or the whole of it. A fixed scale answers both, and stops the
+    /// glyph twitching in the menu bar every time traffic changes band.
+    ///
     /// Drawn rather than taken from SF Symbols: the pair there runs up-then-down,
     /// while the figures beside it read down-then-up, and an icon disagreeing
     /// with the numbers it labels is a small lie told constantly.
@@ -212,40 +231,51 @@ enum Indicator {
         let armWidth: CGFloat = 5.4
         let gap: CGFloat = 2.6
         let spread: CGFloat = 2.7          // half-width of a chevron
-        let depth: CGFloat = 3.1           // how far its arms fall back from the point
-        let step: CGFloat = 4.3            // distance between chevrons
+        let depth: CGFloat = 2.2           // how far its arms fall back from the point
+        let step: CGFloat = 2.8            // distance between chevrons
 
         let left = box.midX - (armWidth * 2 + gap) / 2
-        color.setStroke()
+        // The whole scale, always: the stack is centred once and does not move.
+        let extent = depth + CGFloat(chevronsPerDirection - 1) * step
 
         for (index, pointingDown) in [true, false].enumerated() {
             let centre = left + armWidth / 2 + CGFloat(index) * (armWidth + gap)
-            let count = pointingDown ? downChevrons : upChevrons
-            // Each direction is centred on its own stack, so one side growing
-            // does not shove the other off its line.
-            let extent = depth + CGFloat(count - 1) * step
-            let tip = pointingDown ? box.midY - extent / 2 : box.midY + extent / 2
+            let lit = pointingDown ? downChevrons : upChevrons
+            // Counted from the inside out, so lighting up runs the way the
+            // arrow does: the mark nearest the middle is the first division,
+            // and the scale fills outwards from there. Numbering it the other
+            // way lit the far tip first and left the stack growing inwards
+            // against its own direction.
+            let base = pointingDown ? box.midY + extent / 2 - depth
+                                    : box.midY - extent / 2 + depth
 
-            for chevron in 0..<count {
+            for chevron in 0..<chevronsPerDirection {
                 let offset = CGFloat(chevron) * step
-                let point = pointingDown ? tip + offset : tip - offset
+                let point = pointingDown ? base - offset : base + offset
                 let back = pointingDown ? point + depth : point - depth
 
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: centre - spread, y: back))
                 path.line(to: NSPoint(x: centre, y: point))
                 path.line(to: NSPoint(x: centre + spread, y: back))
-                path.lineWidth = 1.7
+                path.lineWidth = 1.4
                 path.lineCapStyle = .round
                 path.lineJoinStyle = .round
-                // A slight fade along the stack keeps it reading as motion
-                // rather than as a bracket. Gentle on purpose: too steep and a
-                // three-chevron stack looks like it is trailing off, when a
-                // full stack is exactly the good news here.
-                color.withAlphaComponent(chevron == 0 ? 1 : (chevron == 1 ? 0.82 : 0.66)).setStroke()
+                color.withAlphaComponent(chevron < lit ? 1 : dimAlpha).setStroke()
                 path.stroke()
             }
         }
+    }
+
+    /// How far down the unreached part of the scale is taken.
+    ///
+    /// Not one number for both themes. The same alpha behaves differently at
+    /// each end: over a dark bar the colour sinks into the background, over a
+    /// light one it only pales, so a value dim enough to read as "off" on white
+    /// disappears altogether on black.
+    private static var dimAlpha: CGFloat {
+        let dark = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return dark ? 0.28 : 0.20
     }
 
     /// Widest label of everything that can be shown — the measured estimates and
