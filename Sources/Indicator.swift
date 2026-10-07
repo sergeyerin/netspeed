@@ -216,6 +216,11 @@ enum Indicator {
     /// without a legend, and it is the only reading left when the numbers are
     /// switched off and the arrows stand alone.
     ///
+    /// A highlight runs along the lit marks from the base outwards, the way a
+    /// sign chases its arrows. It only runs while something is actually moving
+    /// — one lit mark is a still link and gets a still icon — so the cost is
+    /// paid exactly when there is something to report.
+    ///
     /// All five are always drawn, the unreached ones dimmed, the way the scale
     /// on a tape deck stays visible while only the level lights up. A stack
     /// that grew and shrank gave no sense of how much room was left above, and
@@ -225,8 +230,12 @@ enum Indicator {
     ///
     /// Drawn rather than taken from SF Symbols for a plain reason: no symbol is
     /// a five-step scale, and the lit part is the whole point of this one.
+    /// `phase` is where the running highlight sits, measured in chevrons from
+    /// the base of each stack; negative means no animation and every lit mark
+    /// burns steadily.
     private static func drawTransferArrows(in box: NSRect, color: NSColor,
-                                           downChevrons: Int, upChevrons: Int) {
+                                           downChevrons: Int, upChevrons: Int,
+                                           phase: Double, cycle: Double) {
         let armWidth: CGFloat = 5.4
         let gap: CGFloat = 2.6
         let spread: CGFloat = 2.7          // half-width of a chevron
@@ -260,10 +269,42 @@ enum Indicator {
                 path.lineWidth = 1.4
                 path.lineCapStyle = .round
                 path.lineJoinStyle = .round
-                color.withAlphaComponent(chevron < lit ? 1 : dimAlpha).setStroke()
+                color.withAlphaComponent(alpha(forChevron: chevron, lit: lit,
+                                               phase: phase, cycle: cycle))
+                    .setStroke()
                 path.stroke()
             }
         }
+    }
+
+    /// One cycle for both stacks, set by the longer of the two, plus two steps
+    /// of darkness so runs do not butt against each other.
+    ///
+    /// Whole steps, and shared rather than per-stack, so the sequence repeats
+    /// on a fixed short period — which is what lets it be a handful of pictures
+    /// shown in turn instead of a render on every frame.
+    static func cycle(for state: LinkState) -> Double {
+        Double(max(state.downChevrons, state.upChevrons) + 2)
+    }
+
+    /// Lit marks sit a little under full while the highlight runs, so the
+    /// crest has somewhere to rise to. Without that headroom the wave could
+    /// only be made of dips, which reads as a fault rather than as motion.
+    private static let litBase: CGFloat = 0.78
+
+    /// Where a mark sits between "not reached" and "lit", with the moving crest
+    /// folded in.
+    ///
+    /// The crest is deliberately small. This is a status icon that sits in the
+    /// corner of the eye all day: anything that demands attention while merely
+    /// reporting normal traffic would have to be switched off within the hour.
+    private static func alpha(forChevron index: Int, lit: Int, phase: Double, cycle: Double) -> CGFloat {
+        guard index < lit else { return dimAlpha }
+        guard phase >= 0, cycle > 0 else { return 1 }
+        let crest = phase.truncatingRemainder(dividingBy: cycle)
+        let distance = crest - Double(index)
+        let falloff = exp(-(distance * distance) / 0.5)
+        return min(1, litBase + (1 - litBase) * CGFloat(falloff))
     }
 
     /// How far down the unreached part of the scale is taken.
@@ -294,7 +335,7 @@ enum Indicator {
     /// monochrome and the colour, which is the whole state, would be lost. The
     /// contents are produced inside a drawing block, so the dynamic colours
     /// follow theme changes on their own.
-    static func image(for state: LinkState, style: IndicatorStyle) -> NSImage? {
+    static func image(for state: LinkState, style: IndicatorStyle, phase: Double = -1) -> NSImage? {
         guard style != .none else { return nil }
         // An empty label reserves no room: with nothing to say, the indicator
         // shrinks to the glyph instead of leaving a gap where a word would be.
@@ -324,7 +365,8 @@ enum Indicator {
             } else {
                 drawTransferArrows(in: slot, color: color,
                                    downChevrons: state.downChevrons,
-                                   upChevrons: state.upChevrons)
+                                   upChevrons: state.upChevrons,
+                                   phase: phase, cycle: cycle(for: state))
             }
             x += glyphBox + innerGap
 

@@ -111,6 +111,15 @@ lives in the middle, wired gigabit reaches the fifth. The bands are read from a
 three-second peak, so a short burst stays visible long enough to be seen instead
 of flickering past in one sample.
 
+From the third division a highlight runs along the lit marks, the way a chase
+light runs along a sign. It steps one mark at a time, three steps a second: the
+smooth version cost four and a half per cent of a core against the one per cent
+the whole app uses, and not because of the drawing — handing the status bar a
+new image makes it lay the item out again, about half a per cent per frame per
+second however the image was made. Bulbs on a sign do not slide either. Below
+the third division, which is where an idle Mac lives, it sleeps entirely; it
+switches off at **Settings → Menu bar display → Animate the indicator**.
+
 The menu leads with the verdict and puts the qualifier in brackets. On a hotspot
 the brackets hold a fact instead of a comparison — `Awful (phone: 5G)` says the
 phone claims 5G while the link crawls, which is the whole point of showing both.
@@ -136,18 +145,36 @@ label, so a change of state does not move the numbers either.
 ## In the menu
 
 A header with the indicator, the verdict in one word with its qualifier, and the
-current speed in large figures. Below it, two minutes of history — download up, upload down. Then
-a table:
+current speed in large figures. Below it, two minutes of history — download up,
+upload down. Then a short table:
 
-- peak over the last minute, session volume and uptime;
-- **latency** to the internet and, separately, to the access point — current,
-  average, jitter, loss;
-- **hotspot phone** (when tethered): device name, cellular technology with the
-  phone's own bars, and its battery level;
-- **connection**: interface, SSID, the Wi-Fi signal scale with RSSI and SNR, link
-  rate, channel with band and width, PHY mode, security, noise;
-- **addresses**: IPv4, gateway, IPv6, active VPN, and the address the outside
-  world sees with the country it resolves to — `185.x.x.x (🇱🇹 LT)`.
+- peak over the last minute and session volume;
+- **latency** to the internet with its loss, and to the access point;
+- **phone** (when tethered): cellular technology, the phone's own bars, battery;
+- **network**: its name, the VPN if one is carrying the traffic, and the address
+  the outside world sees with the country it resolves to — `185.x.x.x (🇱🇹 LT)`.
+
+**Show all details** under the table adds what the diagnostics need — uptime,
+the phone as its own section, the Wi-Fi signal scale with RSSI and SNR, link
+rate, channel with band and width, PHY mode, security, noise, IPv4, gateway,
+IPv6. It is a hosted row rather than a menu item, so the menu stays open and the
+table grows under the pointer.
+
+The split exists because one list was answering two questions. *Is my connection
+all right* wants six rows; *why is it behaving like this* wants the radio, the
+addresses and the route — and pays for them by burying the first answer.
+
+**Why the colour is what it is** hangs on the verdict word as a hint, and on the
+menu bar icon too: `Awful because replies take 1.50 s — over 900 ms`, `Offline
+because 83% of the last 6 checks got no reply`. The sentence comes back from the
+same branch that sets the verdict, so a threshold cannot move without it
+following.
+
+**Traffic by process** lists what is actually using the network, read from
+`nettop` while the menu is open. Tunnels and virtual-machine NATs are separated
+under a heading of their own: they are the heaviest rows in any such list and
+the least informative, since their bytes belong to whatever is behind them and
+are counted twice.
 
 Both axes of the chart are labelled — the value its tallest point stands for and
 how far back the left edge reaches — and hovering puts a cursor on it and reads
@@ -293,6 +320,7 @@ page.
 | `Sources/ExternalIP.swift` | the address the outside world sees, with its country |
 | `Sources/AppDelegate.swift` | status item and menu assembly |
 | `Sources/Indicator.swift` | link indicator: arrows, label, colors for both themes |
+| `Sources/Processes.swift` | per-process traffic, read from `nettop` |
 | `Sources/MenuViews.swift` | header and the details table |
 | `Sources/SparklineView.swift` | history chart |
 | `Sources/Updates.swift` | version comparison and the release check |

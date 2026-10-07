@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let headerUp = RateFormatter()
 
     private var timer: Timer?
+    /// Separate from the one-second tick: the highlight has to move far more
+    /// often than the figures change, and it must stop entirely when nothing
+    /// is moving so an idle Mac pays nothing for it.
+    private var animation: Timer?
+    private var animationPhase: Double = 0
     private var menuOpen = false
     private var menuOpenedAt: Date?
     private var lastGatewayProbe = Date.distantPast
@@ -70,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildAbout()
         rebuildUpdateRow()
         rebuildRejoinRow()
+        rebuildDetailRow()
+        rebuildTrafficRow()
         statusItem.menu = menu
 
         restartTimer()
@@ -290,15 +297,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return routes().first(where: { $0.interface == iface })?.gateway
     }
 
-    private var verdict: LinkVerdict {
+    private var verdict: LinkVerdict { judgement.verdict }
+
+    /// The verdict together with the measurement behind it, so the menu can say
+    /// why rather than only what. A red icon with no stated reason sends people
+    /// looking through the rows for the number that caused it — and the number
+    /// is right there in the rule that fired.
+    private var judgement: LinkVerdict.Judgement {
         let online = monitor.trackedInterface != nil && !routes().isEmpty
+        let peak = monitor.recentPeak(seconds: 60, interval: settings.interval).down
         guard settings.latencyEnabled else {
-            guard online else { return .offline }
-            return monitor.recentPeak(seconds: 60, interval: settings.interval).down > 0 ? .good : .unknown
+            guard online else {
+                return .init(verdict: .offline, because: "no network interface is carrying a route")
+            }
+            guard peak > 0 else {
+                return .init(verdict: .unknown, because: "latency checks are switched off and nothing has moved yet")
+            }
+            return .init(verdict: .good, because: "data is moving; latency checks are switched off")
         }
-        return LinkVerdict.evaluate(internet: internet,
-                                    peakDown: monitor.recentPeak(seconds: 60, interval: settings.interval).down,
-                                    online: online)
+        return LinkVerdict.judge(internet: internet, peakDown: peak, online: online)
     }
 
     /// macOS keeps the last tethering device in the dynamic store even after the
@@ -412,10 +429,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lastState = state
             lastStyle = style
             let effective = style == .none && settings.titleMode == .hidden ? .bars : style
-            button.image = Indicator.image(for: state, style: effective)
-            button.toolTip = tether.map { "\(state.summary) — \($0.name): \($0.signalBars)/\(TetherDevice.maxBars) bars, battery \($0.battery)%" }
-                ?? state.summary
+            button.image = Indicator.image(for: state, style: effective, phase: livePhase)
+            syncAnimation(state: state, style: effective)
+            // The same answer on the icon itself, for whoever points at it
+            // before opening anything.
+            let phone = tether.map { " — \($0.name): \($0.signalBars)/\(TetherDevice.maxBars) bars, battery \($0.battery)%" } ?? ""
+            button.toolTip = (reason ?? state.summary) + phone
         }
+    }
+
+    // MARK: - The running highlight
+
+    /// Three steps a second, and the crest moves exactly one mark per step.
+    ///
+    /// Smooth motion was the first attempt and it cost four and a half per cent
+    /// of a core on top of the one per cent the whole app uses — not the
+    /// drawing, which caching made free, but the assignment itself: handing the
+    /// status bar a new image makes it lay the item out again, and that is
+    /// roughly half a per cent per frame per second however the image was made.
+    ///
+    /// Discrete is not a consolation prize here. A chase light on a sign is
+    /// discrete; bulbs do not slide. Stepping mark to mark is what the thing
+    /// being imitated actually does, and it costs about half a per cent.
+    private static let frameRate = 1.0 / 3
+
+    private var livePhase: Double { animation == nil ? -1 : animationPhase }
+
+    /// One full cycle, drawn once. The sequence repeats exactly, so replaying
+    /// images costs an assignment per frame instead of a render.
+    private var frames: [NSImage] = []
+    private var frameIndex = 0
+
+    private func syncAnimation(state: LinkState, style: IndicatorStyle) {
+        // Three marks, not two. Two begins at 4 KB/s, which a Mac with every
+        // window shut steps over all day — so a "only while data is moving"
+        // rule written that way had the highlight running essentially always,
+        // and idle cost went from one per cent of a core to two and a third.
+        // From the third mark something is genuinely happening.
+        let wanted = settings.animateIndicator && style != .none && state.glyph == nil
+            && max(state.downChevrons, state.upChevrons) > 2
+        // Any change of state invalidates the strip: a different number of lit
+        // marks is a different cycle and different pictures.
+        frames = []
+        frameIndex = 0
+        guard wanted else {
+            animation?.invalidate()
+            animation = nil
+            animationPhase = 0
+            return
+        }
+        guard animation == nil else { return }
+        let t = Timer(timeInterval: AppDelegate.frameRate, repeats: true) { [weak self] _ in
+            self?.stepAnimation()
+        }
+        // Common mode, or the highlight freezes the moment a menu opens.
+        RunLoop.main.add(t, forMode: .common)
+        animation = t
+    }
+
+    private func stepAnimation() {
+        guard let button = statusItem.button, let state = lastState, let style = lastStyle else { return }
+        if frames.isEmpty {
+            let effective = style == .none && settings.titleMode == .hidden ? .bars : style
+            // One frame per step, so the strip is the cycle itself.
+            let count = Int(Indicator.cycle(for: state))
+            frames = (0..<count).compactMap {
+                Indicator.image(for: state, style: effective, phase: Double($0))
+            }
+            guard !frames.isEmpty else { return }
+        }
+        button.image = frames[frameIndex]
+        frameIndex = (frameIndex + 1) % frames.count
+    }
+
+    @objc private func toggleAnimation() {
+        settings.animateIndicator.toggle()
+        if !settings.animateIndicator {
+            animation?.invalidate()
+            animation = nil
+            animationPhase = 0
+            // Redraw once without the crest, or the icon keeps whatever
+            // brightness the last frame happened to leave behind.
+            if let button = statusItem.button, let state = lastState, let style = lastStyle {
+                button.image = Indicator.image(for: state, style: style, phase: -1)
+            }
+        } else if let state = lastState, let style = lastStyle {
+            syncAnimation(state: state, style: style)
+        }
+        rebuildSettings()
     }
 
     /// Latency padded to a constant width, for the same reason as the rates.
@@ -436,11 +537,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildAbout()
         rebuildUpdateRow()
         rebuildRejoinRow()
+        rebuildDetailRow()
+        rebuildTrafficRow()
         // Looking the address up costs an outside request, so it happens only
         // when the menu is actually opened — and only if the answer went stale.
         if settings.showExternalIP {
             externalIP.fetchIfNeeded { [weak self] in self?.refreshMenu() }
         }
+        sampleTraffic()
         refreshMenu()
     }
 
@@ -457,7 +561,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             mi.view = view
             menu.addItem(mi)
         }
+        menu.addItem(detailRow)
         menu.addItem(.separator())
+        menu.addItem(trafficRoot)
         menu.addItem(updateRow)
         menu.addItem(settingsRoot)
         menu.addItem(aboutRoot)
@@ -467,6 +573,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private let settingsRoot = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+
+    /// Switches the panel above between the summary and everything.
+    private let detailRow = NSMenuItem()
+    private let detailView = ToggleRowView()
+
+    private func rebuildDetailRow() {
+        let more = !settings.showAllDetails
+        detailView.configure(title: more ? "Show all details" : "Show less",
+                             symbol: more ? "chevron.down" : "chevron.up") { [weak self] in
+            self?.toggleDetails()
+        }
+        if detailRow.view == nil {
+            detailView.frame = NSRect(origin: .zero, size: detailView.intrinsicContentSize)
+            detailRow.view = detailView
+        }
+    }
+
+    private func toggleDetails() {
+        settings.showAllDetails.toggle()
+        rebuildDetailRow()
+        refreshMenu()
+    }
+
+    // MARK: - What is using the network
+
+    private let trafficRoot = NSMenuItem(title: "Traffic by process", action: nil, keyEquivalent: "")
+    private let trafficMenu = NSMenu()
+    /// Drawn, not listed as menu items. macOS paints a disabled item grey
+    /// whatever colour is asked for, and every row here is disabled — there is
+    /// nothing to click. The panel already solves this for the main menu.
+    private let trafficPanel = PanelView()
+    private var trafficSampling = false
+
+    private func rebuildTrafficRow() {
+        trafficRoot.image = symbol("list.bullet")
+        trafficRoot.submenu = trafficMenu
+        if trafficMenu.items.isEmpty {
+            let mi = NSMenuItem()
+            trafficPanel.frame = NSRect(origin: .zero, size: trafficPanel.intrinsicContentSize)
+            mi.view = trafficPanel
+            trafficMenu.addItem(mi)
+            showTraffic(.waiting)
+        }
+    }
+
+    private enum TrafficState {
+        case waiting
+        case ready([ProcessTraffic.Entry])
+        case failed(String)
+    }
+
+    private func showTraffic(_ state: TrafficState) {
+        var lines: [PanelView.Line] = []
+        switch state {
+        case .waiting:
+            lines.append(.note("Measuring…", .neutral))
+        case .failed(let why):
+            lines.append(.note(why, .alert))
+        case .ready(let entries) where entries.isEmpty:
+            lines.append(.note("Nothing is moving enough to measure", .neutral))
+        case .ready(let entries):
+            let unit = settings.unit
+            func row(_ e: ProcessTraffic.Entry) -> PanelView.Line {
+                .kv(e.name, "↓ \(Fmt.rate(e.bytesIn, unit: unit))   ↑ \(Fmt.rate(e.bytesOut, unit: unit))")
+            }
+            let own = entries.filter { !ProcessTraffic.isCarrier($0.name) }
+            let carriers = entries.filter { ProcessTraffic.isCarrier($0.name) }
+            lines.append(contentsOf: own.prefix(8).map(row))
+            if own.isEmpty { lines.append(.note("Nothing but carriers is moving", .neutral)) }
+            if !carriers.isEmpty {
+                // Separated rather than greyed out: these are the heaviest rows
+                // on the list and the least informative, and a reader has no
+                // way to tell that from the name.
+                lines.append(.section("CARRIES OTHER TRAFFIC"))
+                lines.append(contentsOf: carriers.prefix(4).map(row))
+                lines.append(.note("A VPN tunnel or a virtual machine's network. Their bytes belong to whatever is behind them, and are counted twice here.", .neutral))
+            }
+        }
+        trafficPanel.update(lines)
+    }
+
+    private func sampleTraffic() {
+        guard !trafficSampling else { return }
+        trafficSampling = true
+        showTraffic(.waiting)
+        ProcessTraffic.sample { [weak self] result in
+            guard let self else { return }
+            self.trafficSampling = false
+            switch result {
+            case .success(let entries): self.showTraffic(.ready(entries))
+            case .failure(ProcessTraffic.Failure.unavailable):
+                self.showTraffic(.failed("nettop is not available on this system"))
+            case .failure: self.showTraffic(.failed("Could not read per-process traffic"))
+            }
+        }
+    }
 
     /// Shown only when macOS still remembers a phone to ask.
     private let rejoinRow = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -620,12 +822,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         header.update(state: linkState,
                       down: headerDown.format(s.down, unit: unit, padded: false),
                       up: headerUp.format(s.up, unit: unit, padded: false))
+        header.toolTip = reason
         sparkline.update(history: monitor.history, unit: unit, interval: settings.interval)
         panel.update(panelLines())
         panel.frame.size = panel.intrinsicContentSize
     }
 
+    /// What the panel shows.
+    ///
+    /// Two sizes, because the panel was answering two different questions with
+    /// one list. "Is my connection all right" wants six rows; "why is it
+    /// behaving like this" wants the radio, the addresses and the route, and
+    /// pays for them in a wall of text that buries the first answer. The short
+    /// form is the default and the long one is a click away.
     private func panelLines() -> [PanelView.Line] {
+        settings.showAllDetails ? detailedLines() : summaryLines()
+    }
+
+    /// Everything that answers "how is it going", and nothing that answers
+    /// "how is it wired".
+    private func summaryLines() -> [PanelView.Line] {
+        var lines: [PanelView.Line] = []
+        let unit = settings.unit
+        let peak = monitor.recentPeak(seconds: 60, interval: settings.interval)
+
+        lines.append(.kv("Peak (1 min)", "↓ \(Fmt.rate(peak.down, unit: unit))   ↑ \(Fmt.rate(peak.up, unit: unit))"))
+        lines.append(.kv("Session", "↓ \(Fmt.size(monitor.sessionDown))   ↑ \(Fmt.size(monitor.sessionUp))"))
+
+        if settings.latencyEnabled {
+            let net = internet.series
+            lines.append(.kv("Internet", net.last.map { Fmt.ms($0) } ?? (net.isEmpty ? "measuring…" : "no reply")))
+            // Loss belongs in the short form: it is the one number that says a
+            // link is failing while every other figure still looks healthy.
+            lines.append(.note("   " + stats(net), .neutral))
+            if gateway.host != nil {
+                let gw = gateway.series
+                lines.append(.kv("Access point", gw.last.map { Fmt.ms($0) } ?? (gw.isEmpty ? "measuring…" : "no reply")))
+            }
+        }
+
+        // One line for the phone rather than a section: on a hotspot this is
+        // the whole reason the app is open, and it compresses without loss.
+        if let t = tether {
+            lines.append(.kv("Phone", "\(t.networkType.label) · \(t.signalBars)/\(TetherDevice.maxBars) · \(t.battery)%"))
+        }
+        lines.append(contentsOf: networkNameLines())
+        lines.append(contentsOf: externalIPLines())
+        lines.append(contentsOf: warningLines())
+        return lines
+    }
+
+    /// The short form plus the diagnostics: radio, addresses, route.
+    private func detailedLines() -> [PanelView.Line] {
         var lines: [PanelView.Line] = []
         let unit = settings.unit
         let iface = monitor.trackedInterface
@@ -641,17 +889,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lines.append(.kv("Internet (\(internet.target.title))",
                              net.last.map { Fmt.ms($0) } ?? (net.isEmpty ? "measuring…" : "no reply")))
             lines.append(.note("   " + stats(net), .neutral))
-            if internet.captivePortal {
-                lines.append(.note("This network requires signing in through a browser", .info))
-            }
             if gateway.host != nil {
                 let gw = gateway.series
                 lines.append(.kv("Access point", gw.last.map { Fmt.ms($0) } ?? (gw.isEmpty ? "measuring…" : "no reply")))
                 lines.append(.note("   over \(gateway.method.rawValue) · " + stats(gw), .neutral))
-                // If "the internet" answers faster than the gateway, it is not the internet.
-                if (net.average ?? .infinity) < (gw.average ?? 0) {
-                    lines.append(.note("Answers faster than the access point — likely a local proxy", .alert))
-                }
             }
         }
 
@@ -697,14 +938,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let t = tunnel {
             lines.append(.kv("VPN", "\(t.interface) over \(iface ?? "?")"))
         }
-        if settings.showExternalIP {
-            if let ext = externalIP.result {
-                lines.append(.kv("External IP", ext.display))
-            } else {
-                lines.append(.kv("External IP", externalIP.fetching ? "looking up…" : "unavailable"))
-            }
-        }
+        lines.append(contentsOf: externalIPLines())
+        lines.append(contentsOf: warningLines())
+        return lines
+    }
 
+    /// The rule that produced the colour, in the same terms as the rows below.
+    ///
+    /// A hint rather than a row of its own. It answers a question that is only
+    /// asked when the colour is unwelcome — and a permanent line explaining a
+    /// good verdict is exactly the sort of thing that made the panel a wall in
+    /// the first place. It hangs on the verdict word, which is what anyone
+    /// wanting the answer is already looking at.
+    private var reason: String? {
+        let j = judgement
+        guard !j.because.isEmpty else { return nil }
+        return "\(j.verdict.quality) because \(j.because)"
+    }
+
+    /// Which network this is — the one connection fact the short form keeps.
+    private func networkNameLines() -> [PanelView.Line] {
+        guard let iface = monitor.trackedInterface else {
+            return [.note("No active interface found", .bad)]
+        }
+        let info = Interfaces.describe(iface, counters: monitor.counters[iface])
+        let name = WiFiReader.read(interface: iface)?.ssid ?? info.displayName
+        guard let t = tunnel else { return [.kv("Network", name)] }
+        // A VPN changes where the traffic comes out, which is worth a line even
+        // in the short form — it explains an external IP that looks wrong.
+        return [.kv("Network", name), .kv("VPN", "\(t.interface) over \(iface)")]
+    }
+
+    private func externalIPLines() -> [PanelView.Line] {
+        guard settings.showExternalIP else { return [] }
+        if let ext = externalIP.result { return [.kv("External IP", ext.display)] }
+        return [.kv("External IP", externalIP.fetching ? "looking up…" : "unavailable")]
+    }
+
+    /// Conditional and rare, so they survive into the short form: each one
+    /// explains something the figures above cannot.
+    private func warningLines() -> [PanelView.Line] {
+        var lines: [PanelView.Line] = []
+        if internet.captivePortal {
+            lines.append(.note("This network requires signing in through a browser", .info))
+        }
+        // If "the internet" answers faster than the gateway, it is not the internet.
+        if settings.latencyEnabled, gateway.host != nil,
+           (internet.series.average ?? .infinity) < (gateway.series.average ?? 0) {
+            lines.append(.note("Answers faster than the access point — likely a local proxy", .alert))
+        }
         return lines
     }
 
@@ -757,6 +1039,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             viewMenu.addItem(choice(u.title, value: u.rawValue, selected: settings.unit == u,
                                     action: #selector(pickUnit(_:))))
         }
+        viewMenu.addItem(.separator())
+        let motion = NSMenuItem(title: "Animate the indicator",
+                                action: #selector(toggleAnimation), keyEquivalent: "")
+        motion.target = self
+        motion.state = settings.animateIndicator ? .on : .off
+        viewMenu.addItem(motion)
         sub.addItem(submenu("Menu bar display", viewMenu))
 
         let rateMenu = NSMenu()

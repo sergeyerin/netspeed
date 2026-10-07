@@ -322,20 +322,52 @@ enum LinkVerdict: Equatable {
     /// verdict for that.
     private static let carrying: Double = 8_000
 
+    /// A verdict and the one measurement that produced it.
+    ///
+    /// Returned together so they cannot disagree. Written apart — the rule in
+    /// one place, a sentence about it in another — they drift the first time a
+    /// threshold moves, and an explanation that contradicts the colour beside
+    /// it is worse than none.
+    struct Judgement {
+        let verdict: LinkVerdict
+        /// Why, in the terms the user can check against the rows below it:
+        /// "83% of replies lost", "replies take 1.50 s". Empty when the verdict
+        /// speaks for itself.
+        let because: String
+    }
+
     static func evaluate(internet: InternetProbe, peakDown: Double, online: Bool) -> LinkVerdict {
-        guard online else { return .offline }
-        if internet.captivePortal { return .portal }
+        judge(internet: internet, peakDown: peakDown, online: online).verdict
+    }
+
+    static func judge(internet: InternetProbe, peakDown: Double, online: Bool) -> Judgement {
+        guard online else { return Judgement(verdict: .offline, because: "no network interface is carrying a route") }
+        if internet.captivePortal {
+            return Judgement(verdict: .portal, because: "the network answers with a sign-in page instead of the internet")
+        }
         let s = internet.series
-        guard !s.isEmpty else { return .unknown }
+        guard !s.isEmpty else { return Judgement(verdict: .unknown, because: "") }
         let moving = peakDown >= carrying
         let loss = s.lossPercent(last: window)
-        if loss >= 60 { return moving ? .awful : .offline }
-        guard let rtt = s.average(last: window) else { return moving ? .awful : .offline }
+        let lost = "\(loss)% of the last \(window) checks got no reply"
+        if loss >= 60 {
+            guard moving else { return Judgement(verdict: .offline, because: lost) }
+            return Judgement(verdict: .awful, because: lost + ", though data is still arriving")
+        }
+        guard let rtt = s.average(last: window) else {
+            return Judgement(verdict: moving ? .awful : .offline, because: lost)
+        }
         let ms = rtt * 1000
-        if ms > 900 || loss >= 40 { return .awful }
-        if ms > 400 || loss >= 20 { return .slow }
-        if ms > 180 { return .medium }
-        if peakDown > 0, peakDown < 60_000, ms > 90 { return .medium }
-        return .good
+        let takes = "replies take \(Fmt.ms(rtt))"
+        if ms > 900 { return Judgement(verdict: .awful, because: takes + " — over 900 ms") }
+        if loss >= 40 { return Judgement(verdict: .awful, because: lost) }
+        if ms > 400 { return Judgement(verdict: .slow, because: takes + " — over 400 ms") }
+        if loss >= 20 { return Judgement(verdict: .slow, because: lost) }
+        if ms > 180 { return Judgement(verdict: .medium, because: takes + " — over 180 ms") }
+        if peakDown > 0, peakDown < 60_000, ms > 90 {
+            return Judgement(verdict: .medium,
+                             because: takes + ", and nothing faster than \(Fmt.rate(peakDown, unit: .bytes)) has been seen in a minute")
+        }
+        return Judgement(verdict: .good, because: takes + ", nothing lost")
     }
 }

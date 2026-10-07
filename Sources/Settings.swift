@@ -33,6 +33,8 @@ final class Settings {
         static let externalIP = "showExternalIP"
         static let updates = "checkForUpdates"
         static let rejoin = "rejoinHotspot"
+        static let details = "showAllDetails"
+        static let animate = "animateIndicator"
     }
 
     init() {
@@ -50,6 +52,11 @@ final class Settings {
             K.externalIP: true,
             K.updates: true,
             K.rejoin: false,
+            // The menu opens short. Everything it used to show is still a
+            // click away, but a wall of twenty-five rows answers "what is
+            // wrong with my connection" worse than eight do.
+            K.details: false,
+            K.animate: true,
         ])
     }
 
@@ -72,6 +79,19 @@ final class Settings {
     var titleMode: TitleMode {
         get { TitleMode(rawValue: d.string(forKey: K.titleMode) ?? "") ?? .sum }
         set { d.set(newValue.rawValue, forKey: K.titleMode) }
+    }
+
+    /// Whether the menu shows the diagnostic rows as well as the summary.
+    var showAllDetails: Bool {
+        get { d.bool(forKey: K.details) }
+        set { d.set(newValue, forKey: K.details) }
+    }
+
+    /// The running highlight along the lit chevrons. Costs a redraw ten times a
+    /// second while data is moving, and nothing at all while it is not.
+    var animateIndicator: Bool {
+        get { d.bool(forKey: K.animate) }
+        set { d.set(newValue, forKey: K.animate) }
     }
 
     var latencyEnabled: Bool {

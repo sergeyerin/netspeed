@@ -124,7 +124,15 @@ final class PanelView: NSView {
         guard changed else { return }
         let resize = new.count != lines.count
         lines = new
-        if resize { invalidateIntrinsicContentSize() }
+        if resize {
+            invalidateIntrinsicContentSize()
+            // A menu does not consult a hosted view's intrinsic size on its
+            // own, so the frame has to be set for the menu to find room for it.
+            // Without this a panel that grew or shrank while the menu was open
+            // kept the old height until the menu was closed and opened again.
+            setFrameSize(intrinsicContentSize)
+            enclosingMenuItem?.menu?.update()
+        }
         needsDisplay = true
     }
 
@@ -213,5 +221,67 @@ extension PanelView.Line {
         case let (.note(a1, a2), .note(b1, b2)): return a1 == b1 && a2 == b2
         default: return false
         }
+    }
+}
+
+/// A row that can be clicked without closing the menu.
+///
+/// An ordinary NSMenuItem dismisses the menu the moment it is chosen, which is
+/// right for a command and wrong for a switch: toggling how much the panel
+/// above shows, only to have the panel vanish, means opening the menu again to
+/// see what the toggle did. A hosted view gets the click itself and the menu
+/// stays up, so the change happens under the pointer.
+final class ToggleRowView: NSView {
+    private var title = ""
+    private var symbolName = ""
+    private var hovering = false
+    private var action: (() -> Void)?
+
+    override var isFlipped: Bool { true }
+    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 24) }
+
+    func configure(title: String, symbol: String, action: @escaping () -> Void) {
+        self.title = title
+        self.symbolName = symbol
+        self.action = action
+        needsDisplay = true
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds,
+                                       options: [.mouseEnteredAndExited, .activeAlways],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
+    override func mouseUp(with event: NSEvent) { action?() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if hovering {
+            NSColor.selectedContentBackgroundColor.withAlphaComponent(0.18).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 4, yRadius: 4).fill()
+        }
+        let tint = NSColor.secondaryLabelColor
+        var x = Layout.pad
+        let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+        if let glyph = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) {
+            glyph.isTemplate = true
+            let box = NSRect(x: x, y: bounds.midY - glyph.size.height / 2,
+                             width: glyph.size.width, height: glyph.size.height)
+            tint.set()
+            glyph.draw(in: box, from: .zero, operation: .sourceOver, fraction: 1)
+            box.fill(using: .sourceAtop)
+            x += glyph.size.width + 6
+        }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12),
+            .foregroundColor: tint,
+        ]
+        let size = (title as NSString).size(withAttributes: attrs)
+        (title as NSString).draw(at: NSPoint(x: x, y: bounds.midY - size.height / 2), withAttributes: attrs)
     }
 }
