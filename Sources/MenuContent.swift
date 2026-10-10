@@ -42,6 +42,8 @@ struct MenuFacts {
 
     var showExternalIP = true
     var externalIP: String?
+    /// Just the country, for the short form: "🇳🇱 NL".
+    var externalPlace: String?
     var externalIPLookingUp = false
 }
 
@@ -78,9 +80,35 @@ enum MenuContent {
             lines.append(.kv("Phone", "\(t.networkType.fullName) · \(t.signalBars)/\(TetherDevice.maxBars) · \(t.battery)%"))
         }
         lines.append(contentsOf: networkLines(f))
-        lines.append(contentsOf: externalIPLines(f))
+        lines.append(contentsOf: exitLines(f))
         lines.append(contentsOf: warningLines(f))
         return lines
+    }
+
+    /// Where the traffic comes out, in the terms that matter at a glance: the
+    /// country, and whether a VPN put it there.
+    ///
+    /// The short form used to carry "VPN  utun4 over en0" and the full
+    /// external address. Neither answers anything anyone asks of a summary —
+    /// the interface pair is diagnostics, and the address itself is a number
+    /// to copy, not to read. What is worth knowing is which country the
+    /// outside world thinks you are in, and whether that is deliberate.
+    private static func exitLines(_ f: MenuFacts) -> [PanelView.Line] {
+        guard f.showExternalIP else {
+            return f.tunnel == nil ? [] : [.kv("VPN", "on")]
+        }
+        let place = f.externalPlace
+        let looking = f.externalIPLookingUp
+        if f.tunnel != nil {
+            // No "on": the row is only here when it is. The word comes back
+            // only where the country is missing, because a value column left
+            // blank reads as a fault rather than as brevity.
+            return [.kv("VPN", place ?? (looking ? "looking up…" : "on"))]
+        }
+        guard let place else {
+            return [.kv("Appears from", looking ? "looking up…" : "unavailable")]
+        }
+        return [.kv("Appears from", place)]
     }
 
     /// The short form plus the diagnostics: radio, addresses, route.
@@ -154,10 +182,10 @@ enum MenuContent {
         // nothing on screen explained why the name was missing or where to
         // go, which is exactly the complaint it drew.
         let name = f.wifi?.ssid ?? (f.nameHidden ? hiddenName(f) : f.interfaceName)
-        guard let tunnel = f.tunnel else { return [.kv("Network", name)] }
-        // A VPN changes where the traffic comes out, which is worth a line even
-        // in the short form — it explains an external IP that looks wrong.
-        return [.kv("Network", name), .kv("VPN", tunnel)]
+        // The VPN is not mentioned here: it belongs with where the traffic
+        // comes out, not with what it goes over, and saying it twice in six
+        // rows is how a summary turns back into a list.
+        return [.kv("Network", name)]
     }
 
     /// What to put where the name would be, and it has to fit the value

@@ -880,6 +880,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         f.showExternalIP = settings.showExternalIP
         f.externalIP = externalIP.result?.display
+        f.externalPlace = externalIP.result?.place
         f.externalIPLookingUp = externalIP.fetching
         return f
     }

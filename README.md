@@ -173,13 +173,13 @@ upload down. Then a short table:
 - peak over the last minute and session volume;
 - **latency** to the internet with its loss, and to the access point;
 - **phone** (when tethered): cellular technology, the phone's own bars, battery;
-- **network**: its name, the VPN if one is carrying the traffic, and the address
-  the outside world sees with the country it resolves to — `185.x.x.x (🇱🇹 LT)`.
+- **network**: its name, and where the traffic comes out — the country the
+  outside world places you in, marked `VPN` when a tunnel put it there.
 
 **Show all details** under the table adds what the diagnostics need — uptime,
 the phone as its own section, the Wi-Fi signal scale with RSSI and SNR, link
 rate, channel with band and width, PHY mode, security, noise, IPv4, gateway,
-IPv6. It is a hosted row rather than a menu item, so the menu stays open and the
+IPv6, the external address in full and the VPN's own interfaces. It is a hosted row rather than a menu item, so the menu stays open and the
 table grows under the pointer.
 
 The split exists because one list was answering two questions. *Is my connection

@@ -12,10 +12,17 @@ final class ExternalIP {
         var countryCode: String?   // two-letter code, e.g. "NL"
         var at: Date
 
+        /// "🇳🇱 NL", or nothing when the lookup gave no country. The flag is
+        /// derived from the code rather than fetched.
+        var place: String? {
+            guard let code = countryCode, code.count == 2 else { return nil }
+            return "\(ExternalIP.flag(code)) \(code)"
+        }
+
         /// "1.2.3.4 (🇳🇱 NL)" — the flag is derived from the code, not fetched.
         var display: String {
-            guard let code = countryCode, code.count == 2 else { return address }
-            return "\(address) (\(ExternalIP.flag(code)) \(code))"
+            guard let place else { return address }
+            return "\(address) (\(place))"
         }
     }
 
