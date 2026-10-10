@@ -354,7 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          glyph: v.glyph,
                          tone: v.tone,
                          quality: v.quality,
-                         detail: "phone: \(tether.networkType.label)",
+                         detail: "phone: \(tether.networkType.fullName)",
                          downChevrons: down,
                          upChevrons: up)
     }
@@ -864,7 +864,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // One line for the phone rather than a section: on a hotspot this is
         // the whole reason the app is open, and it compresses without loss.
         if let t = tether {
-            lines.append(.kv("Phone", "\(t.networkType.label) · \(t.signalBars)/\(TetherDevice.maxBars) · \(t.battery)%"))
+            lines.append(.kv("Phone", "\(t.networkType.fullName) · \(t.signalBars)/\(TetherDevice.maxBars) · \(t.battery)%"))
         }
         lines.append(contentsOf: networkNameLines())
         lines.append(contentsOf: externalIPLines())
@@ -900,7 +900,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lines.append(.section("HOTSPOT PHONE"))
             lines.append(.kv("Device", t.name.isEmpty ? "—" : t.name))
             lines.append(.bars("Cellular", t.signalBars, TetherDevice.maxBars,
-                               "\(t.networkType.label) · \(t.signalBars)/\(TetherDevice.maxBars)"))
+                               "\(t.networkType.fullName) · \(t.signalBars)/\(TetherDevice.maxBars)"))
             lines.append(.kv("Phone battery", "\(t.battery)%"))
             lines.append(.note("Reported by the phone itself — \(t.networkType.expectation)", .neutral))
         }
@@ -1183,7 +1183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         if let t = tether {
-            out.append("Hotspot phone: \(t.name), \(t.networkType.label), \(t.signalBars)/\(TetherDevice.maxBars) bars, battery \(t.battery)%")
+            out.append("Hotspot phone: \(t.name), \(t.networkType.fullName), \(t.signalBars)/\(TetherDevice.maxBars) bars, battery \(t.battery)%")
         }
         if let t = tunnel { out.append("VPN: \(t.interface)") }
         out.append("Speed: ↓ \(Fmt.rateBoth(monitor.speed.down)) / ↑ \(Fmt.rateBoth(monitor.speed.up))")

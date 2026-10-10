@@ -47,10 +47,13 @@ final class RateFormatter {
         }
         scaled = value / pow(base, Double(exponent))
 
-        // Both branches produce five characters, so the width never changes.
+        // Both branches produce four characters, so the width never changes.
+        // Four and not five: the unit steps up at the base, so the number only
+        // ever reaches four figures in the top decade — 1023 MB/s — and the
+        // fifth column was a permanent blank between the icon and the figures.
         let number = scaled >= 99.95
-            ? String(format: "%5.0f", scaled)
-            : String(format: "%5.1f", scaled)
+            ? String(format: "%4.0f", scaled)
+            : String(format: "%4.1f", scaled)
         return (padded ? number : number.trimmingCharacters(in: .whitespaces))
             + " " + unit.suffixes[exponent]
     }

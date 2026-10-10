@@ -237,7 +237,10 @@ final class ToggleRowView: NSView {
     private var hovering = false
     private var action: (() -> Void)?
 
-    override var isFlipped: Bool { true }
+    // Deliberately not flipped, unlike the panel above it. An NSImage drawn
+    // into a flipped context comes out upside down, which turned the "show
+    // more" chevron into a "show less" one — the row pointed up while its own
+    // label offered to expand.
     override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 24) }
 
     func configure(title: String, symbol: String, action: @escaping () -> Void) {

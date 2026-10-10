@@ -190,9 +190,14 @@ enum IndicatorStyle: String, CaseIterable {
 }
 
 enum Indicator {
-    private static let font = NSFont.systemFont(ofSize: 9.5, weight: .semibold)
+    /// Smaller than the figures beside it, a shade lighter, and raised off
+    /// their line, the way a superscript sits. Level with them and at the same
+    /// size it read as part of the number — a unit or a prefix — when it is a
+    /// label for the icon on its other side.
+    private static let font = NSFont.systemFont(ofSize: 8.5, weight: .medium)
+    private static let badgeLift: CGFloat = 2.5
     private static let glyphBox: CGFloat = 14
-    private static let innerGap: CGFloat = 3.5
+    private static let innerGap: CGFloat = 2.5
     private static let height: CGFloat = 16
     /// Five divisions, flatter and closer than three were. A fixed scale is
     /// read by how far the lit part reaches, not by counting segments, so the
@@ -318,16 +323,17 @@ enum Indicator {
         return dark ? 0.28 : 0.20
     }
 
-    /// Widest label of everything that can be shown — the measured estimates and
-    /// every cellular technology name. The box is reserved up front so the image
-    /// always has one size; otherwise the status item would resize whenever the
-    /// state changed and shove the numbers sideways.
-    private static let badgeBox: CGFloat = {
-        let labels = LinkVerdict.all.map(\.marker) + CellularType.allLabels
-        return labels
-            .map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }
-            .max() ?? 0
-    }()
+    /// The label takes the room it needs and no more.
+    ///
+    /// It used to reserve the width of the longest label there is — `GPRS` —
+    /// so the item never changed size. That bought less than it cost. The item
+    /// resizes anyway whenever the label appears or disappears, which is the
+    /// common case; reserving only smoothed the rare step from one technology
+    /// to another, and charged thirteen points of permanent gap between the
+    /// icon and the figures for it.
+    private static func badgeWidth(_ label: String) -> CGFloat {
+        ceil((label as NSString).size(withAttributes: [.font: font]).width)
+    }
 
     /// A glyph plus an optional label, as one coloured unit.
     ///
@@ -340,7 +346,7 @@ enum Indicator {
         // An empty label reserves no room: with nothing to say, the indicator
         // shrinks to the glyph instead of leaving a gap where a word would be.
         let showBadge = style == .barsAndBadge && !state.badge.isEmpty
-        let width = glyphBox + (showBadge ? innerGap + badgeBox : 0)
+        let width = glyphBox + (showBadge ? innerGap + badgeWidth(state.badge) : 0)
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
             let color = state.tone.color
@@ -372,14 +378,24 @@ enum Indicator {
 
             if showBadge {
                 let text = state.badge as NSString
-                // The label takes the menu bar's own text colour rather than the
-                // state colour: a dark red word on a grey bar is barely there,
-                // and the glyph already carries the colour. Legibility first.
+                // Full strength, and separated from the figures by weight and
+                // size rather than by fading.
+                //
+                // Both alternatives were tried on a real menu bar and both
+                // failed there. The state colour goes dark red for a bad
+                // verdict, which all but disappears on a light bar — exactly
+                // when it is worth reading. The system's secondary colour is
+                // white at about half opacity, and the menu bar is translucent:
+                // over a mid-tone desktop, measured at 0.56 luminance here,
+                // half-strength white has almost no contrast left. Opacity is
+                // not a reliable channel on a surface whose colour is somebody
+                // else's wallpaper.
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: font, .foregroundColor: NSColor.labelColor,
                 ]
                 let size = text.size(withAttributes: attrs)
-                text.draw(at: NSPoint(x: x, y: (height - size.height) / 2 + 0.5), withAttributes: attrs)
+                text.draw(at: NSPoint(x: x, y: (height - size.height) / 2 + badgeLift),
+                          withAttributes: attrs)
             }
             return true
         }

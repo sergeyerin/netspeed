@@ -16,10 +16,28 @@ enum CellularType: Int {
     case lte = 6
     case fiveG = 7
 
+    /// What a phone writes in its own status bar, not what the technology is
+    /// called. Someone glancing at the menu bar is comparing it against the
+    /// phone in their hand, and `E` beside `EDGE` is one more thing to work
+    /// out. It also costs less room, which on this row is the whole budget.
     var label: String {
         switch self {
         case .other: return "—"
         case .oneX: return "1x"
+        case .gprs: return "G"
+        case .edge: return "E"
+        case .threeG: return "3G"
+        case .fourG: return "4G"
+        case .lte: return "LTE"
+        case .fiveG: return "5G"
+        }
+    }
+
+    /// The full name, for the places with room to spell it out.
+    var fullName: String {
+        switch self {
+        case .other: return "unknown"
+        case .oneX: return "1xRTT"
         case .gprs: return "GPRS"
         case .edge: return "EDGE"
         case .threeG: return "3G"
@@ -28,8 +46,6 @@ enum CellularType: Int {
         case .fiveG: return "5G"
         }
     }
-
-    static let allLabels: [String] = (0...7).compactMap { CellularType(rawValue: $0)?.label }
 
     /// Roughly what this technology can deliver, for the times the reported type
     /// and the measured behaviour disagree.

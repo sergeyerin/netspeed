@@ -84,9 +84,21 @@ full bars to a phone getting nothing from the tower. Labelling a measured estima
 was wrong the same way, making it look like a technology read off a modem, so
 those letters are gone too. A label appears only when
 there is a fact to state: the technology a tethering phone reports about itself
-(`5G`, `LTE`, `EDGE`, …), shown with **Settings → Menu bar display → Arrows and
+(`5G`, `LTE`, `E`, …), shown with **Settings → Menu bar display → Arrows and
 network type**, which also marks `OFF` for a dead network and `WEB` for a
 captive portal.
+
+The label uses the short forms a phone puts in its own status bar — `G`, `E`,
+`3G`, `4G`, `LTE`, `5G` — because the person reading it is comparing it against
+the phone in their hand. The full names appear wherever there is room for them:
+the menu header, the phone's row, the tooltip, the copied summary.
+
+It is set smaller than the figures, a shade lighter, and raised off their line,
+so it reads as a label for the icon rather than a prefix on the number. Not
+faded, though: the menu bar is translucent, and its colour is whatever the
+desktop behind it happens to be — a mid-tone wallpaper leaves half-strength
+white with almost no contrast. Weight and position separate it; opacity cannot
+be relied on there.
 
 | Colour | Menu says |
 |---|---|
