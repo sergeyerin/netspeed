@@ -17,9 +17,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>macOS treats the name of a Wi-Fi network as location data, so this is what it takes to show which network you are on. NetSpeed reads the name and nothing else — it never asks the system for your position.</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.26</string>
+	<string>1.27</string>
 	<key>CFBundleVersion</key>
-	<string>27</string>
+	<string>28</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>LSUIElement</key>
