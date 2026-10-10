@@ -166,8 +166,9 @@ label, so a change of state does not move the numbers either.
 
 ## In the menu
 
-A header with the indicator, the verdict in one word with its qualifier, and the
-current speed in large figures. Below it, two minutes of history — download up,
+A header with the verdict in one word, its qualifier, and the current speed in
+large figures. No indicator: it would sit a few points under the one in the menu
+bar and repeat it, without the chase. Below it, two minutes of history — download up,
 upload down. Then a short table:
 
 - peak over the last minute and session volume;

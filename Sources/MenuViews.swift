@@ -6,7 +6,7 @@ enum Layout {
     static let pad: CGFloat = 14
 }
 
-/// Menu header: the link indicator and two large speed figures.
+/// Menu header: the verdict and two large speed figures.
 ///
 /// Drawn by hand rather than assembled from NSMenuItems: the system paints
 /// disabled menu items grey whatever color is set on them, which makes the data
@@ -16,10 +16,13 @@ final class HeaderView: NSView {
     private var down = ""
     private var up = ""
 
-    // Tall enough to clear the chart's top label underneath: at 58 the descenders
-    // of the speed row sat on it.
-    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 68) }
+    // One row now, so a third of the former height. The figures set it: they
+    // are the tallest thing in it.
+    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 36) }
     override var isFlipped: Bool { true }
+
+    private static let qualityFont = NSFont.systemFont(ofSize: 13, weight: .bold)
+    private static let detailFont = NSFont.systemFont(ofSize: 12)
 
     func update(state: LinkState, down: String, up: String) {
         guard state != self.state || down != self.down || up != self.up else { return }
@@ -30,35 +33,50 @@ final class HeaderView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let tone = state.tone.color
+        // No indicator here. It sat directly below the one in the menu bar,
+        // saying the same thing a few points lower and, since the chase only
+        // runs on the status item, saying it worse. Its colour is on the
+        // verdict word and its chevron count is in the figures beside it.
+        //
+        // Four type sizes meet on this row, so everything is placed from one
+        // baseline rather than from the top: aligning tops would sit the small
+        // words visibly above the figures.
+        let baseline: CGFloat = 23
 
-        // Indicator and label
-        var x = Layout.pad
-        if let icon = Indicator.image(for: state, style: .bars) {
-            icon.draw(in: NSRect(x: x, y: 12, width: icon.size.width * 1.25, height: icon.size.height * 1.25))
-            x += icon.size.width * 1.25 + 7
-        }
         // The verdict leads, in the tone color; the qualifier follows in plain
         // ink. Repeating the menu bar label here would say the same thing twice.
+        var x = Layout.pad
         let quality = NSAttributedString(string: state.quality, attributes: [
-            .font: NSFont.systemFont(ofSize: 13, weight: .bold),
-            .foregroundColor: tone,
+            .font: HeaderView.qualityFont,
+            .foregroundColor: state.tone.color,
         ])
-        quality.draw(at: NSPoint(x: x, y: 12))
+        quality.draw(at: NSPoint(x: x, y: baseline - HeaderView.qualityFont.ascender))
         x += quality.size().width + 6
 
-        if !state.detail.isEmpty {
-            NSAttributedString(string: "(\(state.detail))", attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.labelColor,
-            ]).draw(in: NSRect(x: x, y: 13, width: Layout.width - x - Layout.pad, height: 16))
-        }
-
-        // Large speed figures
-        let y: CGFloat = 34
-        drawRate("↓", down, color: Flow.down.ink, at: NSPoint(x: Layout.pad, y: y))
+        // Right-aligned, as a pair, so the two of them keep a block of their own
+        // and the words to their left get whatever is left.
+        let downWidth = rateWidth("↓", down)
         let upWidth = rateWidth("↑", up)
-        drawRate("↑", up, color: Flow.up.ink, at: NSPoint(x: Layout.width - Layout.pad - upWidth, y: y))
+        let gap: CGFloat = 14
+        let ratesLeft = Layout.width - Layout.pad - upWidth - gap - downWidth
+        drawRate("↓", down, color: Flow.down.ink, baseline: baseline, left: ratesLeft)
+        drawRate("↑", up, color: Flow.up.ink, baseline: baseline,
+                 left: Layout.width - Layout.pad - upWidth)
+
+        // Whatever room the figures leave. It truncates rather than overlapping
+        // them: "Sign-in needed" beside a pair of four-figure rates does not fit
+        // on any width this menu has.
+        let room = ratesLeft - 10 - x
+        if !state.detail.isEmpty, room > 24 {
+            let style = NSMutableParagraphStyle()
+            style.lineBreakMode = .byTruncatingTail
+            NSAttributedString(string: "(\(state.detail))", attributes: [
+                .font: HeaderView.detailFont,
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: style,
+            ]).draw(in: NSRect(x: x, y: baseline - HeaderView.detailFont.ascender,
+                               width: room, height: 16))
+        }
     }
 
     private func rateAttributes(_ color: NSColor) -> ([NSAttributedString.Key: Any], [NSAttributedString.Key: Any]) {
@@ -66,12 +84,15 @@ final class HeaderView: NSView {
          [.font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .medium), .foregroundColor: NSColor.labelColor])
     }
 
-    private func drawRate(_ arrow: String, _ value: String, color: NSColor, at point: NSPoint) {
+    private func drawRate(_ arrow: String, _ value: String, color: NSColor,
+                          baseline: CGFloat, left: CGFloat) {
         let (arrowAttrs, valueAttrs) = rateAttributes(color)
+        let arrowFont = arrowAttrs[.font] as! NSFont
+        let valueFont = valueAttrs[.font] as! NSFont
         let a = NSAttributedString(string: arrow, attributes: arrowAttrs)
-        a.draw(at: point)
+        a.draw(at: NSPoint(x: left, y: baseline - arrowFont.ascender))
         NSAttributedString(string: value, attributes: valueAttrs)
-            .draw(at: NSPoint(x: point.x + a.size().width + 4, y: point.y + 1))
+            .draw(at: NSPoint(x: left + a.size().width + 4, y: baseline - valueFont.ascender))
     }
 
     private func rateWidth(_ arrow: String, _ value: String) -> CGFloat {
