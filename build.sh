@@ -34,6 +34,7 @@ for arch in "${ARCHS[@]}"; do
     -target "$arch-apple-macos13.0" \
     -framework AppKit \
     -framework CoreWLAN \
+    -framework CoreLocation \
     -framework SystemConfiguration \
     -framework ServiceManagement \
     -o "$slice" \

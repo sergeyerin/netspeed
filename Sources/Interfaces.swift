@@ -203,8 +203,8 @@ enum WiFiReader {
         let ch = i.wlanChannel()
         // ssid()/bssid() need Location access; without it, fall back to ipconfig.
         let names = i.ssid() == nil ? Self.namesFromIPConfig(bsd) : (i.ssid(), i.bssid())
-        return WiFiLink(ssid: i.ssid() ?? names.0,
-                        bssid: i.bssid() ?? names.1,
+        return WiFiLink(ssid: Self.usable(i.ssid() ?? names.0),
+                        bssid: Self.usable(i.bssid() ?? names.1),
                         rssi: i.rssiValue(),
                         noise: i.noiseMeasurement(),
                         txRate: i.transmitRate(),
@@ -215,9 +215,25 @@ enum WiFiReader {
                         security: security(i.security()))
     }
 
-    /// `ipconfig getsummary` reports the SSID without a TCC prompt. Called rarely:
-    /// only when the network changes.
+    /// macOS does not withhold the name so much as substitute for it: with no
+    /// Location access both CoreWLAN and `ipconfig getsummary` hand back the
+    /// literal string `<redacted>`. Passed along, it appears in the menu as
+    /// though the network were called that. Nothing is better than a
+    /// placeholder presented as a fact.
+    static func usable(_ name: String?) -> String? {
+        guard let name, !name.isEmpty, name != "<redacted>" else { return nil }
+        return name
+    }
+
+    /// `ipconfig getsummary` reported the SSID without a TCC prompt, and on
+    /// recent macOS no longer does — it redacts it the same way. Kept because
+    /// it still answers on the versions where it works. Called rarely: only
+    /// when the network changes.
     private static var cache: (iface: String, ssid: String?, bssid: String?, at: Date)?
+
+    /// Drops the cached name. Needed the moment Location access is granted:
+    /// what is cached is the placeholder the system returned while it was not.
+    static func forget() { cache = nil }
 
     static func namesFromIPConfig(_ bsd: String) -> (String?, String?) {
         if let c = cache, c.iface == bsd, Date().timeIntervalSince(c.at) < 10 { return (c.ssid, c.bssid) }

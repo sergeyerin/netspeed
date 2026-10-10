@@ -35,6 +35,11 @@ struct MenuFacts {
     /// Shown when on a Personal Hotspot that reports no cellular type of its own.
     var hotspotWithoutType = false
 
+    /// Whether the Wi-Fi name is being withheld, and what can still be done
+    /// about it — the row says which, since the two lead to different places.
+    var nameHidden = false
+    var nameAccess: NetworkName.State = .available
+
     var showExternalIP = true
     var externalIP: String?
     var externalIPLookingUp = false
@@ -108,7 +113,11 @@ enum MenuContent {
         if let bsd = f.interfaceBSD {
             lines.append(.kv(f.interfaceName, bsd))
             if let w = f.wifi {
-                lines.append(.kv("Network", w.ssid ?? "name unavailable"))
+                lines.append(.kv("Network", w.ssid ?? hiddenName(f)))
+                if w.ssid == nil {
+                    lines.append(.note("   macOS treats a network's name as location data, so it takes Location access to read",
+                                       .neutral))
+                }
                 // Two sections, one phone: without saying so, the Wi-Fi below
                 // reads as a second network that happens to be nearby, when it
                 // is the hop to the phone named above.
@@ -140,12 +149,31 @@ enum MenuContent {
     /// Which network this is — the one connection fact the short form keeps.
     private static func networkLines(_ f: MenuFacts) -> [PanelView.Line] {
         guard f.interfaceBSD != nil else { return [.note("No active interface found", .bad)] }
-        let name = f.wifi?.ssid ?? f.interfaceName
+        // With the name withheld, the row says so and offers the one thing
+        // that fixes it. Falling back to "Wi-Fi" was true but a dead end:
+        // nothing on screen explained why the name was missing or where to
+        // go, which is exactly the complaint it drew.
+        let name = f.wifi?.ssid ?? (f.nameHidden ? hiddenName(f) : f.interfaceName)
         guard let tunnel = f.tunnel else { return [.kv("Network", name)] }
         // A VPN changes where the traffic comes out, which is worth a line even
         // in the short form — it explains an external IP that looks wrong.
         return [.kv("Network", name), .kv("VPN", tunnel)]
     }
+
+    /// What to put where the name would be, and it has to fit the value
+    /// column, so: short.
+    static func hiddenName(_ f: MenuFacts) -> String {
+        switch f.nameAccess {
+        case .available: return "hidden — click to allow"
+        // The prompt does not come back once answered, so the only honest
+        // offer left is to open the place where the answer can be changed.
+        case .refused: return "hidden — open Settings"
+        case .granted: return "hidden"
+        }
+    }
+
+    /// The row the delegate should wire a click to, if any.
+    static let networkRow = "Network"
 
     private static func externalIPLines(_ f: MenuFacts) -> [PanelView.Line] {
         guard f.showExternalIP else { return [] }

@@ -114,9 +114,48 @@ final class PanelView: NSView {
 
     private var lines: [Line] = []
 
+    /// Labels whose row answers a click, and what to do about it.
+    ///
+    /// Marked by label rather than by index because the rows come and go with
+    /// the state: an index would point at a different fact a second later.
+    var tappable: Set<String> = []
+    var onTap: ((String) -> Void)?
+    private var rowFrames: [(label: String, rect: NSRect)] = []
+    private var hovered: String?
+
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize {
         NSSize(width: Layout.width, height: lines.reduce(4) { $0 + $1.height } + 6)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds,
+                                       options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways],
+                                       owner: self, userInfo: nil))
+    }
+
+    private func label(at point: NSPoint) -> String? {
+        rowFrames.first { $0.rect.contains(point) }?.label
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let found = label(at: convert(event.locationInWindow, from: nil))
+        guard found != hovered else { return }
+        hovered = found
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard hovered != nil else { return }
+        hovered = nil
+        needsDisplay = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard let label = label(at: convert(event.locationInWindow, from: nil)) else { return }
+        onTap?(label)
     }
 
     func update(_ new: [Line]) {
@@ -137,6 +176,7 @@ final class PanelView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        rowFrames.removeAll(keepingCapacity: true)
         var y: CGFloat = 4
         for line in lines {
             switch line {
@@ -147,8 +187,17 @@ final class PanelView: NSView {
                     .kern: 0.6,
                 ]).draw(at: NSPoint(x: Layout.pad, y: y + 7))
             case .kv(let label, let value):
+                if tappable.contains(label) {
+                    let row = NSRect(x: 0, y: y, width: Layout.width, height: line.height)
+                    rowFrames.append((label, row))
+                    if hovered == label {
+                        NSColor.selectedContentBackgroundColor.withAlphaComponent(0.16).setFill()
+                        NSBezierPath(roundedRect: row.insetBy(dx: 5, dy: 0),
+                                     xRadius: 4, yRadius: 4).fill()
+                    }
+                }
                 _ = drawLabel(label, y: y)
-                drawValue(value, y: y)
+                drawValue(value, y: y, accent: tappable.contains(label))
             case .bars(let label, let filled, let total, let value):
                 let x = drawLabel(label, y: y)
                 drawBars(filled: filled, total: total, at: NSPoint(x: x + 8, y: y + 5))
@@ -180,14 +229,15 @@ final class PanelView: NSView {
     }
 
     /// Values are right-aligned and truncated in the middle when space runs out.
-    private func drawValue(_ value: String, y: CGFloat) {
+    private func drawValue(_ value: String, y: CGFloat, accent: Bool = false) {
         let style = NSMutableParagraphStyle()
         style.alignment = .right
         style.lineBreakMode = .byTruncatingMiddle
         let available = Layout.width - Layout.pad * 2 - 90
         NSAttributedString(string: value, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
-            .foregroundColor: NSColor.labelColor,
+            // A row that answers a click has to say so before it is clicked.
+            .foregroundColor: accent ? NSColor.controlAccentColor : NSColor.labelColor,
             .paragraphStyle: style,
         ]).draw(in: NSRect(x: Layout.width - Layout.pad - available, y: y + 2, width: available, height: 16))
     }

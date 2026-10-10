@@ -826,7 +826,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                       up: headerUp.format(s.up, unit: unit, padded: false))
         header.toolTip = reason
         sparkline.update(history: monitor.history, unit: unit, interval: settings.interval)
-        panel.update(panelLines())
+        let facts = menuFacts()
+        // Only a row that can actually do something answers a click.
+        panel.tappable = facts.nameHidden ? [MenuContent.networkRow] : []
+        panel.onTap = { [weak self] label in
+            guard label == MenuContent.networkRow else { return }
+            self?.handleNetworkNameTap()
+        }
+        panel.update(MenuContent.lines(facts, detailed: settings.showAllDetails))
         panel.frame.size = panel.intrinsicContentSize
     }
 
@@ -859,6 +866,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             f.interfaceBSD = iface
             f.interfaceName = info.displayName
             f.wifi = WiFiReader.read(interface: iface)
+            f.nameHidden = Interfaces.isWiFi(iface) && f.wifi?.ssid == nil
+            f.nameAccess = NetworkName.shared.state
             let addrs = Kernel.addresses(of: iface)
             f.ipv4 = addrs.v4.first
             f.ipv6 = addrs.v6.first
@@ -968,6 +977,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         extIP.target = self
         extIP.state = settings.showExternalIP ? .on : .off
         sub.addItem(extIP)
+
+        // Asked for here and nowhere else: the app starts with no permissions
+        // at all, and this one buys exactly one row of text.
+        let names = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        switch NetworkName.shared.state {
+        case .granted:
+            names.title = "Network names shown"
+            names.state = .on
+        case .refused:
+            names.title = "Network names blocked — see Location Services"
+            names.action = #selector(openLocationSettings)
+            names.target = self
+        case .available:
+            names.title = "Show network names…"
+            names.action = #selector(askForNetworkNames)
+            names.target = self
+        }
+        sub.addItem(names)
         let login = NSMenuItem(title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -1049,6 +1076,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             a.informativeText = error.localizedDescription
             a.runModal()
         }
+    }
+
+    /// Clicking the row does whatever is left to do: ask, or say where to go
+    /// once asking is no longer possible.
+    private func handleNetworkNameTap() {
+        switch NetworkName.shared.state {
+        case .available: askForNetworkNames()
+        case .refused: openLocationSettings()
+        case .granted: break
+        }
+    }
+
+    @objc private func askForNetworkNames() {
+        NetworkName.shared.request { [weak self] in
+            // The name is cached for the length of a tick, and the cached value
+            // is the placeholder macOS handed back before permission existed.
+            WiFiReader.forget()
+            self?.rebuildSettings()
+            self?.refreshMenu()
+        }
+    }
+
+    @objc private func openLocationSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_LocationServices")!
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func toggleExternalIP() {

@@ -41,8 +41,18 @@ Only the Command Line Tools (`swiftc`) are needed. The app has no Dock icon
 (`LSUIElement`) and no windows; enable startup from the menu, **Settings →
 Launch at login**.
 
-macOS asks for no permissions: the SSID comes from `ipconfig getsummary` rather
-than CoreWLAN, which would require Location access.
+It asks for no permissions and runs fully without any. One row costs one: the
+name of the Wi-Fi network. macOS treats it as location data — reasonably, since
+knowing which access point a Mac is on places it about as well as GPS would —
+so `CWInterface.ssid()` is gated behind Location access. `ipconfig getsummary`
+used to answer anyway and on current macOS no longer does: both now return the
+literal string `<redacted>`.
+
+So the row says `hidden` and offers the fix where the problem is visible —
+click it and the system asks. Refuse, and it changes to point at Location
+Services, because the prompt does not come back. Everything else about the
+radio — signal, noise, rate, channel, band, width, PHY, security — needs no
+permission and is there either way.
 
 A release is the image plus its checksum, attached to a tag:
 
