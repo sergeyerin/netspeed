@@ -4,17 +4,27 @@ import SystemConfiguration
 /// Cellular technology the tethering phone reports.
 ///
 /// The raw values come from the enum ControlCenter uses to label a Personal
-/// Hotspot in the Wi-Fi menu (`WiFiHotspotNetworkType`): its cases are declared
-/// in the order below, and its jump table maps 6 to LTE and 7 to 5G.
+/// Hotspot in the Wi-Fi menu (`WiFiHotspotNetworkType`).
+///
+/// The numbering was wrong here for several releases and said `5G` to someone
+/// whose phone, and whose own Wi-Fi menu, both said `LTE`. What settled it was
+/// the pair seen together: the menu rendering `LTE` for the device while the
+/// raw value read 7.
+///
+/// Seven labels exist in ControlCenter, in this order: 1x, GPRS, EDGE, 3G, 4G,
+/// LTE, 5G. For LTE to land on 7 there have to be two cases ahead of them that
+/// carry no label at all — nothing reported, and something unrecognised. That
+/// is the numbering below, and it puts 5G on 8 rather than 7.
 enum CellularType: Int {
-    case other = 0
-    case oneX = 1
-    case gprs = 2
-    case edge = 3
-    case threeG = 4
-    case fourG = 5
-    case lte = 6
-    case fiveG = 7
+    case none = 0
+    case other = 1
+    case oneX = 2
+    case gprs = 3
+    case edge = 4
+    case threeG = 5
+    case fourG = 6
+    case lte = 7
+    case fiveG = 8
 
     /// What a phone writes in its own status bar, not what the technology is
     /// called. Someone glancing at the menu bar is comparing it against the
@@ -22,7 +32,7 @@ enum CellularType: Int {
     /// out. It also costs less room, which on this row is the whole budget.
     var label: String {
         switch self {
-        case .other: return "—"
+        case .none, .other: return "—"
         case .oneX: return "1x"
         case .gprs: return "G"
         case .edge: return "E"
@@ -36,7 +46,7 @@ enum CellularType: Int {
     /// The full name, for the places with room to spell it out.
     var fullName: String {
         switch self {
-        case .other: return "unknown"
+        case .none, .other: return "unknown"
         case .oneX: return "1xRTT"
         case .gprs: return "GPRS"
         case .edge: return "EDGE"
@@ -51,7 +61,7 @@ enum CellularType: Int {
     /// and the measured behaviour disagree.
     var expectation: String {
         switch self {
-        case .other: return "unknown technology"
+        case .none, .other: return "unknown technology"
         case .oneX, .gprs: return "2G, tens of kbit/s"
         case .edge: return "2.5G, up to ~200 kbit/s"
         case .threeG: return "3G, a few Mbit/s"

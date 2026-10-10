@@ -264,8 +264,16 @@ sits in the menu, next to its battery, where there is room to say whose signal
 it is.
 
 The technology codes come from the enum ControlCenter uses for the same purpose
-(`WiFiHotspotNetworkType`). Its cases are declared `other, _1x, GPRS, EDGE, _3G,
-_4G, LTE, _5G`, and its jump table confirms 6 → LTE and 7 → 5G.
+(`WiFiHotspotNetworkType`). ControlCenter carries seven labels for it, in this
+order: `1x, GPRS, EDGE, 3G, 4G, LTE, 5G` — and LTE arrives as 7. For it to land
+there, two cases ahead of them must carry no label at all: nothing reported, and
+something unrecognised. So LTE is 7 and 5G is 8.
+
+That numbering was wrong here for several releases, and the app told someone it
+had 5G while both their phone and their own Wi-Fi menu said LTE. The thing that
+settles such a question is seeing the two together — the system's menu naming
+the device while the raw value is read at the same moment — rather than the
+label order on its own, which was what the earlier guess rested on.
 
 macOS keeps the last tethering device around after the phone disconnects, so the
 data is only used while the Mac actually holds a hotspot address.

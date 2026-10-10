@@ -339,7 +339,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let peak = monitor.recentPeak(seconds: 3, interval: settings.interval)
         let down = LinkState.chevrons(forBytesPerSecond: peak.down)
         let up = LinkState.chevrons(forBytesPerSecond: peak.up)
-        guard let tether, tether.networkType != .other else {
+        // Both the "nothing reported" and "unrecognised" cases leave the badge
+        // empty: a dash in the menu bar states nothing and costs room.
+        guard let tether, tether.networkType.label != "—" else {
             var state = LinkState(v)
             state.downChevrons = down
             state.upChevrons = up
