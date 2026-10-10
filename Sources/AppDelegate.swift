@@ -832,117 +832,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// What the panel shows.
     ///
-    /// Two sizes, because the panel was answering two different questions with
-    /// one list. "Is my connection all right" wants six rows; "why is it
-    /// behaving like this" wants the radio, the addresses and the route, and
-    /// pays for them in a wall of text that buries the first answer. The short
-    /// form is the default and the long one is a click away.
-    private func panelLines() -> [PanelView.Line] {
-        settings.showAllDetails ? detailedLines() : summaryLines()
-    }
+    /// Gathers what the panel needs from the live monitors. The rows
+    /// themselves are built in MenuContent, which the screenshot generator
+    /// calls too — so a picture of the menu cannot show a layout the menu no
+    /// longer has.
+    private func menuFacts() -> MenuFacts {
+        var f = MenuFacts()
+        f.unit = settings.unit
+        f.peak = monitor.recentPeak(seconds: 60, interval: settings.interval)
+        f.sessionDown = monitor.sessionDown
+        f.sessionUp = monitor.sessionUp
+        f.uptime = monitor.uptime
 
-    /// Everything that answers "how is it going", and nothing that answers
-    /// "how is it wired".
-    private func summaryLines() -> [PanelView.Line] {
-        var lines: [PanelView.Line] = []
-        let unit = settings.unit
-        let peak = monitor.recentPeak(seconds: 60, interval: settings.interval)
+        f.latencyEnabled = settings.latencyEnabled
+        f.internetTarget = internet.target.title
+        f.internet = internet.series
+        f.captivePortal = internet.captivePortal
+        f.gatewayHost = gateway.host
+        f.gateway = gateway.series
+        f.gatewayMethod = gateway.method.rawValue
 
-        lines.append(.kv("Peak (1 min)", "↓ \(Fmt.rate(peak.down, unit: unit))   ↑ \(Fmt.rate(peak.up, unit: unit))"))
-        lines.append(.kv("Session", "↓ \(Fmt.size(monitor.sessionDown))   ↑ \(Fmt.size(monitor.sessionUp))"))
+        f.tether = tether
 
-        if settings.latencyEnabled {
-            let net = internet.series
-            lines.append(.kv("Internet", net.last.map { Fmt.ms($0) } ?? (net.isEmpty ? "measuring…" : "no reply")))
-            // Loss belongs in the short form: it is the one number that says a
-            // link is failing while every other figure still looks healthy.
-            lines.append(.note("   " + stats(net), .neutral))
-            if gateway.host != nil {
-                let gw = gateway.series
-                lines.append(.kv("Access point", gw.last.map { Fmt.ms($0) } ?? (gw.isEmpty ? "measuring…" : "no reply")))
-            }
-        }
-
-        // One line for the phone rather than a section: on a hotspot this is
-        // the whole reason the app is open, and it compresses without loss.
-        if let t = tether {
-            lines.append(.kv("Phone", "\(t.networkType.fullName) · \(t.signalBars)/\(TetherDevice.maxBars) · \(t.battery)%"))
-        }
-        lines.append(contentsOf: networkNameLines())
-        lines.append(contentsOf: externalIPLines())
-        lines.append(contentsOf: warningLines())
-        return lines
-    }
-
-    /// The short form plus the diagnostics: radio, addresses, route.
-    private func detailedLines() -> [PanelView.Line] {
-        var lines: [PanelView.Line] = []
-        let unit = settings.unit
-        let iface = monitor.trackedInterface
-        let peak = monitor.recentPeak(seconds: 60, interval: settings.interval)
-
-        lines.append(.kv("Peak (1 min)", "↓ \(Fmt.rate(peak.down, unit: unit))   ↑ \(Fmt.rate(peak.up, unit: unit))"))
-        lines.append(.kv("Session", "↓ \(Fmt.size(monitor.sessionDown))   ↑ \(Fmt.size(monitor.sessionUp))"))
-        lines.append(.kv("Uptime", Fmt.duration(monitor.uptime)))
-
-        if settings.latencyEnabled {
-            lines.append(.section("LATENCY"))
-            let net = internet.series
-            lines.append(.kv("Internet (\(internet.target.title))",
-                             net.last.map { Fmt.ms($0) } ?? (net.isEmpty ? "measuring…" : "no reply")))
-            lines.append(.note("   " + stats(net), .neutral))
-            if gateway.host != nil {
-                let gw = gateway.series
-                lines.append(.kv("Access point", gw.last.map { Fmt.ms($0) } ?? (gw.isEmpty ? "measuring…" : "no reply")))
-                lines.append(.note("   over \(gateway.method.rawValue) · " + stats(gw), .neutral))
-            }
-        }
-
-        if let t = tether {
-            lines.append(.section("HOTSPOT PHONE"))
-            lines.append(.kv("Device", t.name.isEmpty ? "—" : t.name))
-            lines.append(.bars("Cellular", t.signalBars, TetherDevice.maxBars,
-                               "\(t.networkType.fullName) · \(t.signalBars)/\(TetherDevice.maxBars)"))
-            lines.append(.kv("Phone battery", "\(t.battery)%"))
-            lines.append(.note("Reported by the phone itself — \(t.networkType.expectation)", .neutral))
-        }
-
-        lines.append(.section("CONNECTION"))
-        if let iface {
+        if let iface = monitor.trackedInterface {
             let info = Interfaces.describe(iface, counters: monitor.counters[iface])
-            lines.append(.kv(info.displayName, iface))
-            if let w = WiFiReader.read(interface: iface) {
-                lines.append(.kv("Network", w.ssid ?? "name unavailable"))
-                // Two sections, one phone: without saying so, the Wi-Fi below
-                // reads as a second network that happens to be nearby, when it
-                // is the hop to the phone named above.
-                if let t = tether {
-                    lines.append(.note("   this Wi-Fi is the hop to \(t.name), not another network",
-                                       .neutral))
-                }
-                lines.append(.bars("Wi-Fi signal", w.quality.bars, 5, "\(w.rssi) dBm · SNR \(w.snr) dB"))
-                lines.append(.kv("Link rate", "\(Int(w.txRate)) Mbit/s"))
-                lines.append(.kv("Channel", "\(w.channel) · \(w.band) · \(w.width)"))
-                lines.append(.note("   \(w.phy) · \(w.security) · noise \(w.noise) dBm", .neutral))
-            }
+            f.interfaceBSD = iface
+            f.interfaceName = info.displayName
+            f.wifi = WiFiReader.read(interface: iface)
             let addrs = Kernel.addresses(of: iface)
-            if let v4 = addrs.v4.first {
-                lines.append(.kv("IP", v4))
-                if isPersonalHotspot(v4: v4, kind: info.kind), tether == nil {
-                    lines.append(.note("Personal Hotspot: the cellular type is only visible on the phone", .neutral))
-                }
+            f.ipv4 = addrs.v4.first
+            f.ipv6 = addrs.v6.first
+            f.gatewayAddress = currentGateway()
+            if let v4 = f.ipv4 {
+                f.hotspotWithoutType = isPersonalHotspot(v4: v4, kind: info.kind) && tether == nil
             }
-            if let gw = currentGateway() { lines.append(.kv("Gateway", gw)) }
-            if let v6 = addrs.v6.first { lines.append(.kv("IPv6", v6)) }
-        } else {
-            lines.append(.note("No active interface found", .bad))
+            if let t = tunnel { f.tunnel = "\(t.interface) over \(iface)" }
         }
-        if let t = tunnel {
-            lines.append(.kv("VPN", "\(t.interface) over \(iface ?? "?")"))
-        }
-        lines.append(contentsOf: externalIPLines())
-        lines.append(contentsOf: warningLines())
-        return lines
+
+        f.showExternalIP = settings.showExternalIP
+        f.externalIP = externalIP.result?.display
+        f.externalIPLookingUp = externalIP.fetching
+        return f
+    }
+
+    private func panelLines() -> [PanelView.Line] {
+        MenuContent.lines(menuFacts(), detailed: settings.showAllDetails)
     }
 
     /// The rule that produced the colour, in the same terms as the rows below.
@@ -958,48 +892,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "\(j.verdict.quality) because \(j.because)"
     }
 
-    /// Which network this is — the one connection fact the short form keeps.
-    private func networkNameLines() -> [PanelView.Line] {
-        guard let iface = monitor.trackedInterface else {
-            return [.note("No active interface found", .bad)]
-        }
-        let info = Interfaces.describe(iface, counters: monitor.counters[iface])
-        let name = WiFiReader.read(interface: iface)?.ssid ?? info.displayName
-        guard let t = tunnel else { return [.kv("Network", name)] }
-        // A VPN changes where the traffic comes out, which is worth a line even
-        // in the short form — it explains an external IP that looks wrong.
-        return [.kv("Network", name), .kv("VPN", "\(t.interface) over \(iface)")]
-    }
-
-    private func externalIPLines() -> [PanelView.Line] {
-        guard settings.showExternalIP else { return [] }
-        if let ext = externalIP.result { return [.kv("External IP", ext.display)] }
-        return [.kv("External IP", externalIP.fetching ? "looking up…" : "unavailable")]
-    }
-
-    /// Conditional and rare, so they survive into the short form: each one
-    /// explains something the figures above cannot.
-    private func warningLines() -> [PanelView.Line] {
-        var lines: [PanelView.Line] = []
-        if internet.captivePortal {
-            lines.append(.note("This network requires signing in through a browser", .info))
-        }
-        // If "the internet" answers faster than the gateway, it is not the internet.
-        if settings.latencyEnabled, gateway.host != nil,
-           (internet.series.average ?? .infinity) < (gateway.series.average ?? 0) {
-            lines.append(.note("Answers faster than the access point — likely a local proxy", .alert))
-        }
-        return lines
-    }
-
-    /// Short form for the menu panel, full form for the copied summary.
     private func stats(_ s: RTTSeries, full: Bool = false) -> String {
-        var parts: [String] = []
-        if let a = s.average { parts.append("avg \(Fmt.ms(a))") }
-        if full, let b = s.best { parts.append("best \(Fmt.ms(b))") }
-        if let j = s.jitter { parts.append("jitter \(Fmt.ms(j))") }
-        parts.append("loss \(s.lossPercent)%")
-        return parts.joined(separator: " · ")
+        MenuContent.stats(s, full: full)
     }
 
     private func isPersonalHotspot(v4: String, kind: LinkKind?) -> Bool {
