@@ -173,8 +173,8 @@ upload down. Then a short table:
 - peak over the last minute and session volume;
 - **latency** to the internet with its loss, and to the access point;
 - **phone** (when tethered): cellular technology, the phone's own bars, battery;
-- **network**: its name, and where the traffic comes out — the country the
-  outside world places you in, marked `VPN` when a tunnel put it there.
+- **network**: its name, and the country the outside world places you in —
+  `Appears in 🇳🇱 NL`, or `VPN 🇳🇱 NL` when a tunnel put it there.
 
 **Show all details** under the table adds what the diagnostics need — uptime,
 the phone as its own section, the Wi-Fi signal scale with RSSI and SNR, link

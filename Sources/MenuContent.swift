@@ -105,10 +105,15 @@ enum MenuContent {
             // blank reads as a fault rather than as brevity.
             return [.kv("VPN", place ?? (looking ? "looking up…" : "on"))]
         }
+        // "Appears in 🇳🇱 NL" finishes the sentence it starts: the outside world
+        // places you there. The first wording was "Appears from", which points
+        // the wrong way — traffic appears *from* somewhere only to whoever is
+        // receiving it — and the owner of the app had to ask what it meant,
+        // which is the whole test a label has to pass.
         guard let place else {
-            return [.kv("Appears from", looking ? "looking up…" : "unavailable")]
+            return [.kv("Appears in", looking ? "looking up…" : "unavailable")]
         }
-        return [.kv("Appears from", place)]
+        return [.kv("Appears in", place)]
     }
 
     /// The short form plus the diagnostics: radio, addresses, route.
