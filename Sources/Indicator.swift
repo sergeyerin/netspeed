@@ -341,7 +341,12 @@ enum Indicator {
     /// monochrome and the colour, which is the whole state, would be lost. The
     /// contents are produced inside a drawing block, so the dynamic colours
     /// follow theme changes on their own.
-    static func image(for state: LinkState, style: IndicatorStyle, phase: Double = -1) -> NSImage? {
+    /// `cycle` overrides the length of the chase, which is otherwise set by the
+    /// stack itself. A row of indicators in a strip have different stacks and
+    /// so different natural cycles; given one length they step in time, and a
+    /// loop over that many frames closes exactly.
+    static func image(for state: LinkState, style: IndicatorStyle,
+                      phase: Double = -1, cycle: Double? = nil) -> NSImage? {
         guard style != .none else { return nil }
         // An empty label reserves no room: with nothing to say, the indicator
         // shrinks to the glyph instead of leaving a gap where a word would be.
@@ -372,7 +377,7 @@ enum Indicator {
                 drawTransferArrows(in: slot, color: color,
                                    downChevrons: state.downChevrons,
                                    upChevrons: state.upChevrons,
-                                   phase: phase, cycle: cycle(for: state))
+                                   phase: phase, cycle: cycle ?? Indicator.cycle(for: state))
             }
             x += glyphBox + innerGap
 
