@@ -142,7 +142,35 @@ enum HotspotReader {
         func encode(with coder: NSCoder) {}
     }
 
+    /// The phone's own readout, from whichever source still has it.
+    ///
+    /// CoreWLAN's live object is asked first. It is both fresher and more
+    /// durable than the copy in the dynamic store: the stored one was showing a
+    /// battery level an hour out of date while the live object had the current
+    /// one, and then macOS dropped the stored key altogether on a rejoin while
+    /// the live object carried on answering. Reading only the archive meant the
+    /// phone's row simply vanished.
     static func read(interface bsd: String) -> TetherDevice? {
+        live() ?? archived(interface: bsd)
+    }
+
+    /// Straight off CWTetherDevice, by key — the ivars are `_networkType` and
+    /// friends, and the object is the same one the Wi-Fi menu is drawing from.
+    private static func live() -> TetherDevice? {
+        guard let device = HotspotConnect.knownPhone()?.device else { return nil }
+        func number(_ key: String) -> Int { (device.value(forKey: key) as? NSNumber)?.intValue ?? 0 }
+        let type = number("_networkType")
+        let name = (device.value(forKey: "_deviceName") as? String) ?? ""
+        // Nothing useful read means the object is there but empty, and the
+        // archive may still hold a usable snapshot.
+        guard type != 0 || !name.isEmpty else { return nil }
+        return TetherDevice(name: name,
+                            signalBars: max(0, min(TetherDevice.maxBars, number("_signalStrength"))),
+                            battery: max(0, min(100, number("_batteryLife"))),
+                            networkType: CellularType(rawValue: type) ?? .other)
+    }
+
+    private static func archived(interface bsd: String) -> TetherDevice? {
         guard let data = AirPort.state(of: bsd)?["LastTetherDevice"] as? Data else { return nil }
 
         let device: Decoy?
