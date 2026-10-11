@@ -234,12 +234,22 @@ enum MenuContent {
     }
 
     /// Short form for the menu panel, full form for the copied summary.
+    ///
+    /// Over the same window the verdict is drawn from, and that matters more
+    /// than it sounds. These figures were taken over the whole ring — twenty
+    /// probes, one every ten seconds, so better than three minutes — while the
+    /// verdict above them is decided on the last six. The two disagreed
+    /// whenever the link was changing, which is exactly when anyone reads
+    /// them: a row saying "loss 60%" under a verdict reached on a different
+    /// 60%. A number that explains a verdict has to be the number the verdict
+    /// used.
     static func stats(_ s: RTTSeries, full: Bool = false) -> String {
+        let window = LinkVerdict.window
         var parts: [String] = []
-        if let a = s.average { parts.append("avg \(Fmt.ms(a))") }
+        if let a = s.average(last: window) { parts.append("avg \(Fmt.ms(a))") }
         if full, let b = s.best { parts.append("best \(Fmt.ms(b))") }
-        if let j = s.jitter { parts.append("jitter \(Fmt.ms(j))") }
-        parts.append("loss \(s.lossPercent)%")
+        if let j = s.jitter(last: window) { parts.append("jitter \(Fmt.ms(j))") }
+        parts.append("loss \(s.lossPercent(last: window))%")
         return parts.joined(separator: " · ")
     }
 }

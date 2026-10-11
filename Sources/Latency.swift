@@ -24,8 +24,10 @@ final class RTTSeries {
 
     /// Jitter as the mean spread between neighbouring samples — this is what
     /// makes a mobile link's "breathing" visible.
-    var jitter: Double? {
-        let s = successful
+    var jitter: Double? { jitter(last: samples.count) }
+
+    func jitter(last count: Int) -> Double? {
+        let s = samples.suffix(count).compactMap { $0 }
         guard s.count > 1 else { return nil }
         let diffs = zip(s.dropFirst(), s).map { abs($0 - $1) }
         return diffs.reduce(0, +) / Double(diffs.count)
