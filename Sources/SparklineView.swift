@@ -13,9 +13,19 @@ final class SparklineView: NSView {
     private var interval: TimeInterval = 1
     private var hover: Int?
 
-    private let plotInset = NSEdgeInsets(top: 16, left: Layout.pad, bottom: 14, right: Layout.pad)
+    // The insets hold the axis labels and, beyond them, the air that keeps this
+    // from running into the header above and the table below.
+    //
+    // The spacing used to be lopsided in a way that is obvious once measured:
+    // the top label sat two points off the chart's frame, and the bottom pair
+    // sat at y = 0 — flush against the view's own edge, and so against the
+    // first row of the table. Labels now stand clear of the frame by the same
+    // amount at both ends, with the same air beyond them.
+    private let labelGap: CGFloat = 6     // between a label and the chart's frame
+    private let outerGap: CGFloat = 8     // between a label and whatever is past it
+    private let plotInset = NSEdgeInsets(top: 27, left: Layout.pad, bottom: 27, right: Layout.pad)
 
-    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 66) }
+    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 90) }
 
     func update(history: [Speed], unit: RateUnit, interval: TimeInterval) {
         self.history = history
@@ -148,28 +158,26 @@ final class SparklineView: NSView {
                 .foregroundColor: Flow.up.ink,
             ]))
             reading.append(NSAttributedString(string: ago == 0 ? "   now" : "   \(ago)s ago", attributes: dim))
-            reading.draw(at: NSPoint(x: plot.minX, y: plot.maxY + 2))
+            reading.draw(at: NSPoint(x: plot.minX, y: plot.maxY + labelGap))
             return
         }
 
         // Vertical scale: what the tallest point on the chart stands for.
         NSAttributedString(string: "scale \(Fmt.rate(maxValue, unit: unit))", attributes: dim)
-            .draw(at: NSPoint(x: plot.minX, y: plot.maxY + 2))
+            .draw(at: NSPoint(x: plot.minX, y: plot.maxY + labelGap))
 
-        let legend = NSMutableAttributedString()
-        legend.append(NSAttributedString(string: "↓", attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                                                                  .foregroundColor: Flow.down.ink]))
-        legend.append(NSAttributedString(string: " down  ", attributes: dim))
-        legend.append(NSAttributedString(string: "↑", attributes: [.font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                                                                   .foregroundColor: Flow.up.ink]))
-        legend.append(NSAttributedString(string: " up", attributes: dim))
-        legend.draw(at: NSPoint(x: plot.maxX - legend.size().width, y: plot.maxY + 2))
+        // No "↓ down ↑ up" legend. It was painted in the darker inks that text
+        // uses, not in the bright fills it was labelling — a key in the wrong
+        // colours is worse than none. And it was explaining what the header
+        // directly above already pairs up: the blue figure against the orange
+        // one, with their arrows. Direction is also in the chart itself, which
+        // puts download above the midline and upload below.
 
         // Horizontal scale: how far back the left edge reaches.
         let span = Int((Double(max(history.count - 1, 0)) * interval).rounded())
         NSAttributedString(string: span >= 60 ? "\(span / 60)m \(span % 60)s ago" : "\(span)s ago", attributes: dim)
-            .draw(at: NSPoint(x: plot.minX, y: 0))
+            .draw(at: NSPoint(x: plot.minX, y: outerGap))
         let now = NSAttributedString(string: "now", attributes: dim)
-        now.draw(at: NSPoint(x: plot.maxX - now.size().width, y: 0))
+        now.draw(at: NSPoint(x: plot.maxX - now.size().width, y: outerGap))
     }
 }

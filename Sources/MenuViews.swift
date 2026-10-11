@@ -18,11 +18,22 @@ final class HeaderView: NSView {
 
     // One row now, so a third of the former height. The figures set it: they
     // are the tallest thing in it.
-    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 36) }
+    override var intrinsicContentSize: NSSize { NSSize(width: Layout.width, height: 38) }
     override var isFlipped: Bool { true }
 
-    private static let qualityFont = NSFont.systemFont(ofSize: 13, weight: .bold)
-    private static let detailFont = NSFont.systemFont(ofSize: 12)
+    // Two tiers, not four sizes.
+    //
+    // The row used to carry 13 bold, 12, 15 and 14 — which is not a hierarchy,
+    // it is four sizes that happened. The arrows were the largest thing on it
+    // and they are the least of it: markers, not data.
+    //
+    // Now the figures are the biggest because they are what gets read, the
+    // verdict follows as the headline in its own colour, and the arrows and
+    // the qualifier sit together on a quiet third size.
+    private static let qualityFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    private static let detailFont = NSFont.systemFont(ofSize: 11)
+    private static let arrowFont = NSFont.systemFont(ofSize: 11, weight: .bold)
+    private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 15, weight: .medium)
 
     func update(state: LinkState, down: String, up: String) {
         guard state != self.state || down != self.down || up != self.up else { return }
@@ -41,7 +52,7 @@ final class HeaderView: NSView {
         // Four type sizes meet on this row, so everything is placed from one
         // baseline rather than from the top: aligning tops would sit the small
         // words visibly above the figures.
-        let baseline: CGFloat = 23
+        let baseline: CGFloat = 24
 
         // The verdict leads, in the tone color; the qualifier follows in plain
         // ink. Repeating the menu bar label here would say the same thing twice.
@@ -72,7 +83,7 @@ final class HeaderView: NSView {
             style.lineBreakMode = .byTruncatingTail
             NSAttributedString(string: "(\(state.detail))", attributes: [
                 .font: HeaderView.detailFont,
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: NSColor.secondaryLabelColor,
                 .paragraphStyle: style,
             ]).draw(in: NSRect(x: x, y: baseline - HeaderView.detailFont.ascender,
                                width: room, height: 16))
@@ -80,8 +91,8 @@ final class HeaderView: NSView {
     }
 
     private func rateAttributes(_ color: NSColor) -> ([NSAttributedString.Key: Any], [NSAttributedString.Key: Any]) {
-        ([.font: NSFont.systemFont(ofSize: 15, weight: .medium), .foregroundColor: color],
-         [.font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .medium), .foregroundColor: NSColor.labelColor])
+        ([.font: HeaderView.arrowFont, .foregroundColor: color],
+         [.font: HeaderView.valueFont, .foregroundColor: NSColor.labelColor])
     }
 
     private func drawRate(_ arrow: String, _ value: String, color: NSColor,

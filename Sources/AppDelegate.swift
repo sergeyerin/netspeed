@@ -824,6 +824,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         header.update(state: linkState,
                       down: headerDown.format(s.down, unit: unit, padded: false),
                       up: headerUp.format(s.up, unit: unit, padded: false))
+        // On the verdict word, where anyone wanting the answer is already
+        // looking. It was briefly moved into the panel on the theory that the
+        // tooltip was the pale box appearing over the chart's reading;
+        // measuring the screenshot showed that box to be the desktop coming
+        // through a translucent menu, which no amount of our drawing explains.
         header.toolTip = reason
         sparkline.update(history: monitor.history, unit: unit, interval: settings.interval)
         let facts = menuFacts()
