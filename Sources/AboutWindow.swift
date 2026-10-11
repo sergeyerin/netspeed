@@ -125,8 +125,17 @@ final class AboutWindow: NSObject, NSWindowDelegate {
         w.makeKeyAndOrderFront(nil)
     }
 
+    /// A borderless button looks like a link and behaves like one, except for
+    /// the cursor: AppKit gives a pointing hand to nothing by default, so a
+    /// link that leaves the arrow alone reads as decoration.
+    private final class LinkButton: NSButton {
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: .pointingHand)
+        }
+    }
+
     private func link(_ title: String, _ address: String) -> NSButton {
-        let b = NSButton(title: title, target: self, action: #selector(openLink(_:)))
+        let b = LinkButton(title: title, target: self, action: #selector(openLink(_:)))
         b.isBordered = false
         b.contentTintColor = .linkColor
         b.identifier = NSUserInterfaceItemIdentifier(address)
