@@ -23,6 +23,22 @@ extension Bundle {
     var version: String {
         (object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0"
     }
+
+    /// What `git describe` said when this was built — stamped in by build.sh.
+    var buildSource: String? {
+        object(forInfoDictionaryKey: "NSBuildSource") as? String
+    }
+
+    /// Whether this is the build that went out under its version number.
+    ///
+    /// True only when the tree was on the tag and clean, so describe printed
+    /// the tag and nothing else. A local build carries the commits past it or
+    /// a `-dirty` suffix, and saying "1.29" about it would be a quiet lie —
+    /// one that has already cost an afternoon, when a running copy and a fresh
+    /// one both reported the same number.
+    var isRelease: Bool {
+        buildSource == "v\(version)"
+    }
 }
 
 /// Asks GitHub whether a newer release exists.

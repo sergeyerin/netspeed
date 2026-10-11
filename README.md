@@ -54,6 +54,18 @@ Services, because the prompt does not come back. Everything else about the
 radio — signal, noise, rate, channel, band, width, PHY, security — needs no
 permission and is there either way.
 
+**About NetSpeed** opens a window rather than a submenu: checking for updates
+takes a second or two, and a menu cannot wait — the click that started the
+request also closed the menu, leaving the answer to arrive in a row nobody was
+looking at. The window holds the version, the update check and its result, the
+daily-check setting and the links.
+
+It also says which build this is. `build.sh` stamps `git describe` into the
+bundle, so a release reads `v1.29` and anything else reads `v1.29-3-gabc1234`
+or `-dirty`. Without that a local build and a release are indistinguishable at
+a glance, which has already cost an afternoon of wondering why a fix was not in
+the app. The menu item says `About NetSpeed — local build` when it is one.
+
 A release is the image plus its checksum, attached to a tag:
 
 ```bash

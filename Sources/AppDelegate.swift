@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let internet = InternetProbe()
     private let settings = Settings.shared
     private let updates = UpdateChecker(currentVersion: Bundle.main.version)
+    private lazy var about = AboutWindow(updates: updates, settings: settings)
 
     private let menu = NSMenu()
     private let header = HeaderView()
@@ -564,14 +565,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(mi)
         }
         menu.addItem(detailRow)
+
+        // Four groups, because the tail of this menu had none and read as a
+        // heap. What decides the grouping is who the item is about.
+        //
+        // First, things that happened and want an answer — a new release, a
+        // phone that could be asked to share again. Both come and go, and both
+        // used to appear wherever they happened to be inserted: the update row
+        // between two unrelated submenus, the hotspot offer between "About"
+        // and "Copy summary".
+        menu.addItem(newsSeparator)
+        menu.addItem(updateRow)
+        menu.addItem(rejoinRow)
+
+        // Then the two things that act on what the panel above is showing.
         menu.addItem(.separator())
         menu.addItem(trafficRoot)
-        menu.addItem(updateRow)
+        menu.addItem(actionItem("Copy summary", symbol: "doc.on.doc", action: #selector(copySummary)))
+
+        // Then the app itself.
+        menu.addItem(.separator())
         menu.addItem(settingsRoot)
         menu.addItem(aboutRoot)
-        menu.addItem(rejoinRow)
-        menu.addItem(actionItem("Copy summary", symbol: "doc.on.doc", action: #selector(copySummary)))
+
+        // And Quit alone, where every Mac menu keeps it.
+        menu.addItem(.separator())
         menu.addItem(actionItem("Quit", symbol: "power", action: #selector(quitApp), key: "q"))
+    }
+
+    /// Hidden along with the pair it introduces: a separator with nothing
+    /// under it is a line across the menu for no reason, and both rows above
+    /// it are often absent at once.
+    private let newsSeparator = NSMenuItem.separator()
+
+    private func syncNewsSeparator() {
+        newsSeparator.isHidden = updateRow.isHidden && rejoinRow.isHidden
     }
 
     private let settingsRoot = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
@@ -675,12 +703,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Shown only when macOS still remembers a phone to ask.
     private let rejoinRow = NSMenuItem(title: "", action: nil, keyEquivalent: "")
 
+    /// Offered only while there is nothing to connect to.
+    ///
+    /// The row asks the phone to switch its hotspot back on, which is a thing
+    /// to want when the phone lost cell service and shut the hotspot down —
+    /// the network is gone, so there is nothing on this side to rejoin. Sitting
+    /// on that hotspot already, the request has no subject: it is the state
+    /// the button exists to reach. It was offered anyway, and pressing it
+    /// there is how the crash in 1.16 was found.
     private func rebuildRejoinRow() {
-        guard HotspotConnect.isSupported, let phone = HotspotConnect.knownPhone() else {
+        guard HotspotConnect.isSupported, !onHotspot, let phone = HotspotConnect.knownPhone() else {
             rejoinRow.isHidden = true
+            syncNewsSeparator()
             return
         }
         rejoinRow.isHidden = false
+        syncNewsSeparator()
         rejoinRow.title = "Ask \(phone.name) to share again"
         rejoinRow.image = symbol("iphone.gen3.radiowaves.left.and.right")
         rejoinRow.action = #selector(rejoinNow)
@@ -707,9 +745,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildUpdateRow() {
         guard let release = updates.newer else {
             updateRow.isHidden = true
+            syncNewsSeparator()
             return
         }
         updateRow.isHidden = false
+        syncNewsSeparator()
         updateRow.title = "Update available — \(release.version)"
         updateRow.image = symbol("arrow.down.circle.fill")
         updateRow.action = #selector(openLink(_:))
@@ -721,96 +761,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Rebuilt whenever the menu opens, like the settings: it reports the state
     /// of the update check, which changes while the app runs.
+    /// "About NetSpeed" opens a window rather than a submenu.
+    ///
+    /// Checking for updates takes a second or two, and a menu cannot wait: the
+    /// click that started the request also closed the menu, and the answer
+    /// arrived in a row nobody was looking at. A window keeps the question and
+    /// the answer in one place, and has room for the thing a menu had none
+    /// for — which build this actually is.
     private func rebuildAbout() {
-        let root = aboutRoot
-        root.image = symbol("info.circle")
-        let sub = NSMenu()
-        let version = Bundle.main.version
-        // Greyed out on purpose: a version is a caption, not something to click.
-        let state: String
-        if !settings.checkForUpdates {
-            state = ""
-        } else if updates.checking {
-            state = " — checking…"
-        } else if let release = updates.newer {
-            state = " — \(release.version) available"
-        } else if updates.lastChecked != nil {
-            state = " — up to date"
-        } else {
-            state = ""
-        }
-        let label = NSMenuItem(title: "Version \(version)\(state)", action: nil, keyEquivalent: "")
-        label.isEnabled = false
-        sub.addItem(label)
-
-        let now = NSMenuItem(title: updates.checking ? "Checking…" : "Check now",
-                             action: #selector(checkNow), keyEquivalent: "")
-        now.target = self
-        now.isEnabled = !updates.checking
-        sub.addItem(now)
-
-        let daily = NSMenuItem(title: "Check daily", action: #selector(toggleUpdateChecks), keyEquivalent: "")
-        daily.target = self
-        daily.state = settings.checkForUpdates ? .on : .off
-        daily.toolTip = "Asks GitHub once a day whether a newer release exists."
-        sub.addItem(daily)
-        sub.addItem(.separator())
-        for (title, url) in [("Download page — netspeed.biplane.cc", "https://netspeed.biplane.cc/"),
-                             ("Other projects — biplane.cc", "https://biplane.cc/"),
-                             ("Source on GitHub", "https://github.com/sergeyerin/netspeed")] {
-            let mi = NSMenuItem(title: title, action: #selector(openLink(_:)), keyEquivalent: "")
-            mi.target = self
-            mi.representedObject = url
-            sub.addItem(mi)
-        }
-        root.submenu = sub
+        aboutRoot.image = symbol("info.circle")
+        aboutRoot.title = Bundle.main.isRelease ? "About NetSpeed" : "About NetSpeed — local build"
+        aboutRoot.action = #selector(showAbout)
+        aboutRoot.target = self
+        aboutRoot.submenu = nil
     }
 
-    /// Clicking a menu item closes the menu, and the answer arrives a moment
-    /// later — so the result had to be hunted for by opening the menu again.
-    /// An explicit ask gets an explicit answer.
-    @objc private func checkNow() {
-        let asked = Date()
-        rebuildAbout()
-        updates.check(force: true) { [weak self] in
-            guard let self else { return }
-            self.rebuildUpdateRow()
-            self.rebuildAbout()
-            self.refreshMenu()
-
-            if let release = self.updates.newer {
-                self.message.show(
-                    title: "NetSpeed \(release.version) is available",
-                    message: "This copy is \(Bundle.main.version).",
-                    action: ("Open release page", { NSWorkspace.shared.open(release.url) }))
-            } else if (self.updates.lastChecked ?? .distantPast) >= asked {
-                self.message.show(
-                    title: "NetSpeed is up to date",
-                    message: "Version \(Bundle.main.version) is the latest release.")
-            } else {
-                // lastChecked only moves on a successful answer, so an unchanged
-                // one means GitHub was not reached — worth saying, since the app
-                // is about connections that come and go.
-                self.message.show(
-                    title: "Could not check for updates",
-                    message: "GitHub did not answer. The connection may be down, "
-                        + "or the check may have been rate-limited.")
-            }
-        }
+    @objc private func showAbout() {
+        about.show()
     }
 
     /// Turning the daily check back on looks at once rather than waiting a day.
-    @objc private func toggleUpdateChecks() {
-        settings.checkForUpdates.toggle()
-        if settings.checkForUpdates {
-            checkForUpdates(force: true)
-        } else {
-            rebuildUpdateRow()
-        }
-        rebuildAbout()
-        refreshMenu()
-    }
-
     @objc private func openLink(_ sender: NSMenuItem) {
         guard let string = sender.representedObject as? String, let url = URL(string: string) else { return }
         NSWorkspace.shared.open(url)
@@ -909,6 +879,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func stats(_ s: RTTSeries, full: Bool = false) -> String {
         MenuContent.stats(s, full: full)
+    }
+
+    /// Whether this Mac is on a Personal Hotspot right now, over Wi-Fi or USB.
+    private var onHotspot: Bool {
+        if tether != nil { return true }
+        guard let iface = monitor.trackedInterface else { return false }
+        let kind = Interfaces.describe(iface, counters: monitor.counters[iface]).kind
+        guard let v4 = Kernel.addresses(of: iface).v4.first else { return kind == .hotspotUSB }
+        return isPersonalHotspot(v4: v4, kind: kind)
     }
 
     private func isPersonalHotspot(v4: String, kind: LinkKind?) -> Bool {

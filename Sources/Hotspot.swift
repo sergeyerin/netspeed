@@ -4,27 +4,43 @@ import SystemConfiguration
 /// Cellular technology the tethering phone reports.
 ///
 /// The raw values come from the enum ControlCenter uses to label a Personal
-/// Hotspot in the Wi-Fi menu (`WiFiHotspotNetworkType`).
+/// Hotspot in the Wi-Fi menu (`WiFiHotspotNetworkType`), which is undocumented:
+/// the class carrying it appears in CoreWLAN's symbol table and in none of its
+/// public headers. The numbers mean whatever observation says they mean.
 ///
-/// The numbering was wrong here for several releases and said `5G` to someone
-/// whose phone, and whose own Wi-Fi menu, both said `LTE`. What settled it was
-/// the pair seen together: the menu rendering `LTE` for the device while the
-/// raw value read 7.
+/// Two are settled, each by catching the system's own Wi-Fi menu naming the
+/// device in the same second the raw value was read:
 ///
-/// Seven labels exist in ControlCenter, in this order: 1x, GPRS, EDGE, 3G, 4G,
-/// LTE, 5G. For LTE to land on 7 there have to be two cases ahead of them that
-/// carry no label at all — nothing reported, and something unrecognised. That
-/// is the numbering below, and it puts 5G on 8 rather than 7.
+///   * 4 is 3G — seen 11 Oct 2026
+///   * 7 is LTE — seen 10 Oct 2026
+///
+/// ControlCenter holds seven labels in this order: 1x, GPRS, EDGE, 3G, 4G,
+/// LTE, 5G. Those two anchors leave one more value between 3G and LTE than
+/// there are labels for, so one case carries no label at all. It is placed
+/// where a real technology sits unnamed — HSPA, between 3G and 4G — but that
+/// is inference, not evidence, and so is everything here except 4 and 7.
+///
+/// Which is why `CellularLog` records every value this app ever sees. The next
+/// disagreement between the badge and the Wi-Fi menu should not need a fresh
+/// investigation, only the log and a glance at the menu.
 enum CellularType: Int {
     case none = 0
-    case other = 1
-    case oneX = 2
-    case gprs = 3
-    case edge = 4
-    case threeG = 5
+    case oneX = 1
+    case gprs = 2
+    case edge = 3
+    case threeG = 4
+    case unnamed = 5          // no label in ControlCenter; HSPA, most likely
     case fourG = 6
     case lte = 7
     case fiveG = 8
+
+    /// Every raw value the app sees passes through here, so the log is a
+    /// complete record and not a sample.
+    static func seen(_ raw: Int) -> CellularType {
+        let type = CellularType(rawValue: raw) ?? .none
+        CellularLog.record(raw: raw, shownAs: type.label)
+        return type
+    }
 
     /// What a phone writes in its own status bar, not what the technology is
     /// called. Someone glancing at the menu bar is comparing it against the
@@ -32,7 +48,7 @@ enum CellularType: Int {
     /// out. It also costs less room, which on this row is the whole budget.
     var label: String {
         switch self {
-        case .none, .other: return "—"
+        case .none, .unnamed: return "—"
         case .oneX: return "1x"
         case .gprs: return "G"
         case .edge: return "E"
@@ -46,7 +62,8 @@ enum CellularType: Int {
     /// The full name, for the places with room to spell it out.
     var fullName: String {
         switch self {
-        case .none, .other: return "unknown"
+        case .none: return "unknown"
+        case .unnamed: return "unnamed by macOS"
         case .oneX: return "1xRTT"
         case .gprs: return "GPRS"
         case .edge: return "EDGE"
@@ -61,7 +78,8 @@ enum CellularType: Int {
     /// and the measured behaviour disagree.
     var expectation: String {
         switch self {
-        case .none, .other: return "unknown technology"
+        case .none: return "unknown technology"
+        case .unnamed: return "a type macOS does not name — most likely HSPA"
         case .oneX, .gprs: return "2G, tens of kbit/s"
         case .edge: return "2.5G, up to ~200 kbit/s"
         case .threeG: return "3G, a few Mbit/s"
@@ -167,7 +185,7 @@ enum HotspotReader {
         return TetherDevice(name: name,
                             signalBars: max(0, min(TetherDevice.maxBars, number("_signalStrength"))),
                             battery: max(0, min(100, number("_batteryLife"))),
-                            networkType: CellularType(rawValue: type) ?? .other)
+                            networkType: CellularType.seen(type))
     }
 
     private static func archived(interface bsd: String) -> TetherDevice? {
@@ -188,6 +206,6 @@ enum HotspotReader {
         return TetherDevice(name: device.name,
                             signalBars: max(0, min(TetherDevice.maxBars, device.signal)),
                             battery: max(0, min(100, device.battery)),
-                            networkType: CellularType(rawValue: device.type) ?? .other)
+                            networkType: CellularType.seen(device.type))
     }
 }

@@ -14,6 +14,21 @@ rm -rf "$APP"
 mkdir -p "$MACOS_DIR" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
 
+# Where this build came from, written into the bundle so the app can say so.
+#
+# A released image is built from a tag with nothing uncommitted, and `git
+# describe` prints exactly the tag. Anything else — commits past it, a dirty
+# tree — and it prints the difference, which is the honest way for a build to
+# admit it is not the one on the download page. Without this a local build and
+# a release look identical in the menu, and the question "is this the version I
+# think it is" has no answer anywhere.
+# Note for releasing: pack the image *after* tagging. Run before the tag
+# exists and describe prints the previous one plus the distance, and the
+# released build calls itself a local build — truthfully, but uselessly.
+SOURCE=$(git describe --tags --dirty --always 2>/dev/null || echo "unknown")
+/usr/libexec/PlistBuddy -c "Add :NSBuildSource string $SOURCE" \
+  "$APP/Contents/Info.plist" > /dev/null
+
 # The icon is generated once and committed; regenerate with tools/make-icon.swift.
 if [[ -f Resources/AppIcon.icns ]]; then
   cp Resources/AppIcon.icns "$APP/Contents/Resources/"
