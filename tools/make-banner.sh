@@ -20,9 +20,28 @@ fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
+# The fonts and the icon live with the download page, which moved to a private
+# repository when the server's address was taken out of this one. This script
+# kept copying from tools/page-assets/ and has been broken ever since — long
+# enough for the banner to spend fourteen releases advertising a signal-bar
+# scale the app no longer has.
+NS_SITE="${NS_SITE:-../netspeed-site}"
+if [[ ! -d "$NS_SITE/page-assets" ]]; then
+    echo "No page assets at $NS_SITE/page-assets — set NS_SITE to the site checkout." >&2
+    exit 1
+fi
+
+# The strip, though, comes from here: it is generated into preview/ alongside
+# the README's other pictures, so the banner shows the same indicator they do.
+if [[ ! -f preview/tray-light.png ]]; then
+    echo "No preview/tray-light.png — generate the screenshots first." >&2
+    exit 1
+fi
+
 # The page refers to its assets by plain names, so stage them together.
 cp tools/banner.html "$WORK/banner.html"
-cp tools/page-assets/*.woff2 tools/page-assets/icon-256.png tools/page-assets/tray-light.png "$WORK/"
+cp "$NS_SITE"/page-assets/*.woff2 "$NS_SITE/page-assets/icon-256.png" "$WORK/"
+cp preview/tray-light.png "$WORK/"
 
 mkdir -p preview
 "$CHROME" --headless --disable-gpu --no-sandbox --hide-scrollbars \
