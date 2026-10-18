@@ -35,6 +35,7 @@ final class Settings {
         static let rejoin = "rejoinHotspot"
         static let details = "showAllDetails"
         static let animate = "animateIndicator"
+        static let pinnedScale = "pinnedKiloScale"
     }
 
     init() {
@@ -57,6 +58,7 @@ final class Settings {
             // wrong with my connection" worse than eight do.
             K.details: false,
             K.animate: true,
+            K.pinnedScale: false,
         ])
     }
 
@@ -92,6 +94,16 @@ final class Settings {
     var animateIndicator: Bool {
         get { d.bool(forKey: K.animate) }
         set { d.set(newValue, forKey: K.animate) }
+    }
+
+    /// Keeps the menu bar in kilobytes however fast the link goes.
+    ///
+    /// Off by default: a gigabit link reads 125000 KB/s, six digits where
+    /// three would do. On a mobile link the scale never leaves kilo anyway,
+    /// and pinning it stops the figure changing meaning mid-glance.
+    var pinnedKiloScale: Bool {
+        get { d.bool(forKey: K.pinnedScale) }
+        set { d.set(newValue, forKey: K.pinnedScale) }
     }
 
     var latencyEnabled: Bool {

@@ -198,6 +198,13 @@ enum Indicator {
     private static let badgeLift: CGFloat = 2.5
     private static let glyphBox: CGFloat = 14
     private static let innerGap: CGFloat = 2.5
+    /// Space before the glyph, inside the image.
+    ///
+    /// The indicator now follows the figures, and a button sets its image
+    /// against its title with nothing between them — the `s` of `KB/s` was
+    /// touching the first chevron. Carried in the image rather than set on the
+    /// button because the button's own spacing is not reachable from here.
+    private static let leadingGap: CGFloat = 7
     private static let height: CGFloat = 16
     /// Five divisions, flatter and closer than three were. A fixed scale is
     /// read by how far the lit part reaches, not by counting segments, so the
@@ -351,11 +358,11 @@ enum Indicator {
         // An empty label reserves no room: with nothing to say, the indicator
         // shrinks to the glyph instead of leaving a gap where a word would be.
         let showBadge = style == .barsAndBadge && !state.badge.isEmpty
-        let width = glyphBox + (showBadge ? innerGap + badgeWidth(state.badge) : 0)
+        let width = leadingGap + glyphBox + (showBadge ? innerGap + badgeWidth(state.badge) : 0)
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
             let color = state.tone.color
-            var x: CGFloat = 0
+            var x: CGFloat = leadingGap
 
             let slot = NSRect(x: x, y: 0, width: glyphBox, height: height)
             if let glyph = state.glyph {

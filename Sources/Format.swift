@@ -31,7 +31,22 @@ final class RateFormatter {
     private let maxExponent = 3
     private let stepDownRatio = 0.85  // hysteresis, keeps the unit from flickering
 
-    func format(_ bytesPerSecond: Double, unit: RateUnit, padded: Bool = true) -> String {
+    /// Forgets the scale it had settled on.
+    ///
+    /// The scale persists between calls on purpose — that is the hysteresis —
+    /// so switching modes has to clear it, or the old unit survives until the
+    /// rate happens to cross a boundary.
+    func reset() { exponent = minExponent }
+
+    /// `pinned` keeps the unit at kilo however fast the link goes.
+    ///
+    /// Scaling is what a reader has to undo: 1.2 MB/s and 980 KB/s are a
+    /// second apart on a busy link and comparing them means converting one in
+    /// your head. Pinned, the figure only ever grows. It costs width — a
+    /// gigabit link reaches six digits — which is why it is a choice and not
+    /// the default.
+    func format(_ bytesPerSecond: Double, unit: RateUnit,
+                padded: Bool = true, pinned: Bool = false) -> String {
         if unit != lastUnit {
             lastUnit = unit
             exponent = minExponent
@@ -39,21 +54,42 @@ final class RateFormatter {
         let base = unit.base
         let value = max(0, unit.value(fromBytesPerSecond: bytesPerSecond))
 
-        var scaled = value / pow(base, Double(exponent))
-        if scaled >= base, exponent < maxExponent {
-            exponent += 1
-        } else if scaled < stepDownRatio, exponent > minExponent {
-            exponent -= 1
+        if pinned {
+            exponent = minExponent
+        } else {
+            let atCurrentScale = value / pow(base, Double(exponent))
+            if atCurrentScale >= base, exponent < maxExponent {
+                exponent += 1
+            } else if atCurrentScale < stepDownRatio, exponent > minExponent {
+                exponent -= 1
+            }
         }
-        scaled = value / pow(base, Double(exponent))
+        let scaled = value / pow(base, Double(exponent))
 
-        // Both branches produce four characters, so the width never changes.
-        // Four and not five: the unit steps up at the base, so the number only
-        // ever reaches four figures in the top decade — 1023 MB/s — and the
-        // fifth column was a permanent blank between the icon and the figures.
-        let number = scaled >= 99.95
-            ? String(format: "%4.0f", scaled)
-            : String(format: "%4.1f", scaled)
+        // Four columns wide, so the width never changes.
+        //
+        // Whole numbers in kilobytes: there the tenths changed every tick
+        // without deciding anything — nobody acts on 52.9 against 53.1 KB/s,
+        // and a flickering last digit is the sort of movement the eye keeps
+        // going back to. Below half a kilobyte a second this reads 0 KB/s,
+        // the honest summary of nothing happening; the unit never steps below
+        // kilo by design, so there was no finer reading to lose.
+        //
+        // Megabytes keep a tenth while it fits. Dropping it there costs a
+        // whole decade of resolution — 1.1 and 1.9 MB/s both read "1" — and
+        // that decade is where a fast link spends its time. Past 99.95 the
+        // figure needs all four columns and the tenth goes, which matters
+        // less: the step from 114 to 115 MB/s is a tenth of a per cent.
+        //
+        // Four columns and not five: the unit steps up at the base, so the
+        // number only ever reaches four figures in the top decade — 1023 MB/s.
+        // Six columns when pinned, because a gigabit link reaches 125000 KB/s
+        // and a field that overflows is worse than a wide one.
+        let number = pinned
+            ? String(format: "%6.0f", scaled)
+            : (exponent >= 2 && scaled < 99.95
+                ? String(format: "%4.1f", scaled)
+                : String(format: "%4.0f", scaled))
         return (padded ? number : number.trimmingCharacters(in: .whitespaces))
             + " " + unit.suffixes[exponent]
     }

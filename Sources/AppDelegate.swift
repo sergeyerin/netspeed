@@ -374,8 +374,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         let unit = settings.unit
         let s = monitor.speed
-        let down = titleDown.format(s.down, unit: unit)
-        let up = titleUp.format(s.up, unit: unit)
+        let down = titleDown.format(s.down, unit: unit, pinned: settings.pinnedKiloScale)
+        let up = titleUp.format(s.up, unit: unit, pinned: settings.pinnedKiloScale)
 
         var lines: [String]
         switch settings.titleMode {
@@ -389,7 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .sum:
             // No arrow of its own: the indicator beside it is already a pair of
             // them, and two sets side by side read as two different things.
-            lines = [titleDown.format(s.total, unit: unit)]
+            lines = [titleDown.format(s.total, unit: unit, pinned: settings.pinnedKiloScale)]
         case .withPing:
             // Rates first and latency trailing the lower line. Put in front it
             // sat alone against the indicator with nothing beneath it; put on
@@ -423,10 +423,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // A fully monospaced face, not merely monospaced digits: the padding that
         // holds the width constant is made of spaces, and those must align too.
-        button.attributedTitle = NSAttributedString(string: text, attributes: [
-            .font: NSFont.monospacedSystemFont(ofSize: oneLine ? 11 : 9, weight: .regular),
-            .paragraphStyle: paragraph,
-        ])
+        // Two points taller on one line, where the status item has the room:
+        // the figures are the whole message and 11 point left them smaller
+        // than the clock beside them. The two-line mode stays at 9 — two lines
+        // of 10 would come to the full height of the menu bar.
+        button.attributedTitle = AppDelegate.title(text, size: oneLine ? 13 : 9,
+                                                   paragraph: paragraph)
+
+        // Indicator to the right of the figures.
+        //
+        // The rates are padded to a constant width, so a short one carries
+        // leading spaces. With the icon on the left those spaces sat between
+        // the two as a hole that opened and closed with the traffic; on the
+        // right they fall at the outer edge of the item, where they are
+        // indistinguishable from the gap to the next thing in the menu bar.
+        // Same padding, no hole.
+        button.imagePosition = .imageTrailing
 
         if state != lastState || style != lastStyle {
             lastState = state
@@ -439,6 +451,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let phone = tether.map { " — \($0.name): \($0.signalBars)/\(TetherDevice.maxBars) bars, battery \($0.battery)%" } ?? ""
             button.toolTip = (reason ?? state.summary) + phone
         }
+    }
+
+    /// The figures full size, their units a size down.
+    ///
+    /// The unit is the least of what this row says — it changes about once a
+    /// minute and it is the same four characters either way — yet set in the
+    /// same type as the number it was reading as part of it. Smaller, it steps
+    /// back and the digits come forward, which is the order anyone glancing at
+    /// a menu bar wants them in.
+    ///
+    /// Smaller and not fainter: the menu bar is translucent, its colour is
+    /// whatever the desktop behind it happens to be, and over a mid-tone
+    /// wallpaper half-strength text has almost no contrast left. Size is the
+    /// one axis that survives any backdrop.
+    ///
+    /// It also sits a shade below the figures — half a point of ink, not the
+    /// point and a half tried first. Reaching even that takes a small lift
+    /// rather than a drop: set on a shared baseline the smaller type already
+    /// hangs a full point lower, partly its metrics, partly the slash in
+    /// "KB/s", which descends.
+    ///
+    /// A deliberate drop was tried first, after a speedometer, where km/h sits
+    /// well under the number. It does not carry: there the number is forty
+    /// points tall, and at twelve the same proportion detaches the unit and
+    /// sets it on the floor of the menu bar.
+    ///
+    /// Both the step down and the lift are fractions of the type size, so the
+    /// two-line mode at 9 point gets the same proportions as the single line
+    /// at 13. The numbers behind them were measured on the rendered strip, not
+    /// read off the font's metrics, which say nothing about the slash.
+    private static let units = ["B/s", "KB/s", "MB/s", "GB/s",
+                                "b/s", "Kb/s", "Mb/s", "Gb/s", "ms"]
+
+    private static func title(_ text: String, size: CGFloat,
+                              paragraph: NSParagraphStyle) -> NSAttributedString {
+        let full = NSMutableAttributedString(string: text, attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: size, weight: .regular),
+            .paragraphStyle: paragraph,
+        ])
+        let small = NSFont.monospacedSystemFont(ofSize: size * 0.77, weight: .regular)
+        let drop = size * 0.023
+        let ns = text as NSString
+        // Longest first, or "B/s" would claim the tail of "KB/s" and leave its
+        // first letter at full size.
+        for unit in units.sorted(by: { $0.count > $1.count }) {
+            var from = 0
+            while from < ns.length {
+                let found = ns.range(of: unit, options: [],
+                                     range: NSRange(location: from, length: ns.length - from))
+                guard found.location != NSNotFound else { break }
+                from = found.location + found.length
+                // Only where the whole token is the unit: "ms" inside a word is
+                // not a unit, and a longer suffix has already been styled.
+                guard full.attribute(.font, at: found.location, effectiveRange: nil) as? NSFont != small,
+                      found.location == 0 || ns.character(at: found.location - 1) == 32
+                else { continue }
+                full.addAttributes([.font: small, .baselineOffset: drop], range: found)
+            }
+        }
+        return full
     }
 
     // MARK: - The running highlight
@@ -503,6 +575,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         button.image = frames[frameIndex]
         frameIndex = (frameIndex + 1) % frames.count
+    }
+
+    @objc private func togglePinnedScale() {
+        settings.pinnedKiloScale.toggle()
+        // The formatters carry the current scale between ticks; left alone,
+        // the old one would persist until the rate crossed a boundary.
+        [titleDown, titleUp, headerDown, headerUp].forEach { $0.reset() }
+        rebuildSettings()
+        tick()
     }
 
     @objc private func toggleAnimation() {
@@ -792,8 +873,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let s = monitor.speed
 
         header.update(state: linkState,
-                      down: headerDown.format(s.down, unit: unit, padded: false),
-                      up: headerUp.format(s.up, unit: unit, padded: false))
+                      down: headerDown.format(s.down, unit: unit, padded: false,
+                                              pinned: settings.pinnedKiloScale),
+                      up: headerUp.format(s.up, unit: unit, padded: false,
+                                            pinned: settings.pinnedKiloScale))
         // On the verdict word, where anyone wanting the answer is already
         // looking. It was briefly moved into the panel on the theory that the
         // tooltip was the pale box appearing over the chart's reading;
@@ -929,6 +1012,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             viewMenu.addItem(choice(u.title, value: u.rawValue, selected: settings.unit == u,
                                     action: #selector(pickUnit(_:))))
         }
+        let pinned = NSMenuItem(title: "Always kilobytes", action: #selector(togglePinnedScale),
+                                keyEquivalent: "")
+        pinned.target = self
+        pinned.state = settings.pinnedKiloScale ? .on : .off
+        pinned.toolTip = "Never switches to MB/s. Wider, but the figure keeps one meaning."
+        viewMenu.addItem(pinned)
+
         viewMenu.addItem(.separator())
         let motion = NSMenuItem(title: "Animate the indicator",
                                 action: #selector(toggleAnimation), keyEquivalent: "")
