@@ -492,7 +492,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ])
         let small = NSFont.monospacedSystemFont(ofSize: size * 0.77, weight: .regular)
         let drop = size * 0.023
+        // The space before a unit belongs to the unit: left in the figures'
+        // size it opened a monospaced gap as wide as a digit, which read as a
+        // missing character rather than as spacing.
+        let tighten = -size * 0.06
         let ns = text as NSString
+
+        // The tenth is part of the figure, so it keeps the figures' baseline —
+        // only the size steps down. The unit is a different thing and sits
+        // slightly lower; this does not.
+        var at = 0
+        while at + 1 < ns.length {
+            let here = ns.character(at: at)
+            let next = ns.character(at: at + 1)
+            let isDot = here == 46 || here == 44
+            let digitBefore = at > 0 && (48...57).contains(Int(ns.character(at: at - 1)))
+            if isDot, digitBefore, (48...57).contains(Int(next)) {
+                full.addAttribute(.font, value: small, range: NSRange(location: at, length: 2))
+                at += 2
+                continue
+            }
+            at += 1
+        }
+
         // Longest first, or "B/s" would claim the tail of "KB/s" and leave its
         // first letter at full size.
         for unit in units.sorted(by: { $0.count > $1.count }) {
@@ -508,6 +530,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                       found.location == 0 || ns.character(at: found.location - 1) == 32
                 else { continue }
                 full.addAttributes([.font: small, .baselineOffset: drop], range: found)
+                // Every space before the unit, not just the one touching it:
+                // the suffix is padded so "B/s" lines up with "KB/s", and a
+                // padding space left at the figures' size put the width back.
+                var start = found.location
+                while start > 0, ns.character(at: start - 1) == 32 { start -= 1 }
+                if start < found.location {
+                    full.addAttribute(.font, value: small,
+                                      range: NSRange(location: start,
+                                                     length: found.location - start))
+                    // Tightened once, on the space that actually touches the
+                    // unit. Applied to each of them, the pair of padding
+                    // spaces before "B/s" pulled a kern further than the
+                    // single one before "KB/s", and the width drifted again.
+                    full.addAttribute(.kern, value: tighten,
+                                      range: NSRange(location: found.location - 1, length: 1))
+                }
             }
         }
         return full

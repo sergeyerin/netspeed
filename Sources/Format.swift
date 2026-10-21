@@ -27,7 +27,6 @@ final class RateFormatter {
     private var exponent = 1          // 1 = kilo, 2 = mega, 3 = giga
     private var lastUnit: RateUnit?
 
-    private let minExponent = 1
     private let maxExponent = 3
     private let stepDownRatio = 0.85  // hysteresis, keeps the unit from flickering
 
@@ -36,7 +35,7 @@ final class RateFormatter {
     /// The scale persists between calls on purpose — that is the hysteresis —
     /// so switching modes has to clear it, or the old unit survives until the
     /// rate happens to cross a boundary.
-    func reset() { exponent = minExponent }
+    func reset() { exponent = 1 }
 
     /// `pinned` keeps the unit at kilo however fast the link goes.
     ///
@@ -49,21 +48,36 @@ final class RateFormatter {
                 padded: Bool = true, pinned: Bool = false) -> String {
         if unit != lastUnit {
             lastUnit = unit
-            exponent = minExponent
+            exponent = 1
         }
         let base = unit.base
         let value = max(0, unit.value(fromBytesPerSecond: bytesPerSecond))
 
+        // Bytes are allowed as the bottom step unless the scale is pinned.
+        //
+        // The floor used to be kilo, which made an idle link read "0 KB/s" —
+        // a quiet lie, since something is nearly always trickling. Three
+        // significant figures make the honest reading narrower than the lie
+        // was: "412 B/s".
+        let floor = pinned ? 1 : 0
         if pinned {
-            exponent = minExponent
-        } else {
+            exponent = 1
+        } else if value > 0 {
             let atCurrentScale = value / pow(base, Double(exponent))
             if atCurrentScale >= base, exponent < maxExponent {
                 exponent += 1
-            } else if atCurrentScale < stepDownRatio, exponent > minExponent {
+            } else if atCurrentScale < stepDownRatio, exponent > floor {
                 exponent -= 1
             }
         }
+        // Nothing moving holds the scale where the traffic left it. Allowed to
+        // step, a gap in a megabyte download walks the unit down through
+        // kilobytes to "0.0 B/s" — a reading that answers a question nobody
+        // asked, in a unit that has nothing to do with what was happening a
+        // second ago. "0 MB/s" says the same nothing against the right scale.
+        //
+        // A trickle still steps it down: this holds only on an exact zero, and
+        // a few hundred bytes a second is not one.
         let scaled = value / pow(base, Double(exponent))
 
         // Four columns wide, so the width never changes.
@@ -83,15 +97,37 @@ final class RateFormatter {
         //
         // Four columns and not five: the unit steps up at the base, so the
         // number only ever reaches four figures in the top decade — 1023 MB/s.
-        // Six columns when pinned, because a gigabit link reaches 125000 KB/s
-        // and a field that overflows is worse than a wide one.
+        // Three columns, which is every reading this can produce once the unit
+        // is free to follow it: the scale steps at the base, so the figure is
+        // always between 1 and 999. Under ten it spends the third column on a
+        // tenth — 1.2, 9.8 — because that is the decade where a tenth is a
+        // tenth of the value rather than a thousandth.
+        //
+        // Four columns were needed only because the unit could not step down
+        // to bytes and the figure had to stretch to cover the gap.
+        //
+        // Pinned to kilobytes the figure runs to six — 125000 KB/s on a
+        // gigabit link — and a field that overflows is worse than a wide one.
+        // Three columns for the whole part and a tenth, always.
+        //
+        // The tenth used to come and go — below ten it was there, above ten it
+        // was not, and zero had neither — so the figure changed shape as well
+        // as value and the eye kept re-reading it. Always present, it is a
+        // fixed mark the reading hangs on; the menu bar sets it a size down,
+        // the way it does the unit, so it informs without competing.
         let number = pinned
             ? String(format: "%6.0f", scaled)
-            : (exponent >= 2 && scaled < 99.95
-                ? String(format: "%4.1f", scaled)
-                : String(format: "%4.0f", scaled))
+            : String(format: "%5.1f", scaled)
+        // The suffix is padded too, because "B/s" is a character shorter than
+        // "KB/s" and the item would jump a character wide every time the scale
+        // crossed a kilobyte — which, on an idle link, is constantly.
+        let widest = unit.suffixes.map(\.count).max() ?? 0
+        let suffix = unit.suffixes[exponent]
+        let spaced = padded
+            ? String(repeating: " ", count: widest - suffix.count) + suffix
+            : suffix
         return (padded ? number : number.trimmingCharacters(in: .whitespaces))
-            + " " + unit.suffixes[exponent]
+            + " " + spaced
     }
 }
 
